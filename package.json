@@ -1,0 +1,26 @@
+{
+  "name": "motionconvert",
+  "private": true,
+  "scripts": {
+    "predev": "pnpm --filter @motionconvert/shared build && pnpm --filter @motionconvert/db generate && pnpm --filter @motionconvert/converter build",
+    "dev": "concurrently -n api,worker,web -c blue,magenta,green \"pnpm --filter @motionconvert/api dev\" \"pnpm --filter @motionconvert/worker dev\" \"pnpm --filter @motionconvert/web dev\"",
+    "build": "pnpm -r build",
+    "test": "pnpm --filter @motionconvert/shared test && pnpm --filter @motionconvert/converter test && pnpm --filter @motionconvert/api test",
+    "convert:test": "pnpm --filter @motionconvert/converter test:integration",
+    "db:migrate": "pnpm --filter @motionconvert/db migrate",
+    "db:generate": "pnpm --filter @motionconvert/db generate",
+    "storage:clean": "node scripts/storage-clean.mjs",
+    "storage:migrate": "node scripts/migrate-storage.mjs",
+    "queue:recover": "pnpm --filter @motionconvert/worker recover",
+    "playwright:install": "pnpm exec playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "concurrently": "^9.1.2",
+    "playwright": "^1.49.1",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

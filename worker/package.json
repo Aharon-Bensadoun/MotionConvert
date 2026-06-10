@@ -1,0 +1,25 @@
+{
+  "name": "@motionconvert/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "recover": "tsx src/recover-cli.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@motionconvert/converter": "workspace:*",
+    "@motionconvert/db": "workspace:*",
+    "@motionconvert/shared": "workspace:*",
+    "bullmq": "^5.34.3",
+    "dotenv": "^16.4.7",
+    "ioredis": "^5.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

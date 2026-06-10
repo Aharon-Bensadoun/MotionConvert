@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env
+.env.local
+storage/uploads/*
+storage/outputs/*
+storage/work/*
+!storage/uploads/.gitkeep
+!storage/outputs/.gitkeep
+!storage/work/.gitkeep
+*.mp4
+*.png
+.DS_Store
+coverage/
+.turbo/
+*.log

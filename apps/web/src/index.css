@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "DM Sans", system-ui, sans-serif;
+  --color-surface: #0f1117;
+  --color-panel: #171a24;
+  --color-border: #2a2f3d;
+  --color-accent: #6c5ce7;
+  --color-accent-hover: #7f71ef;
+  --color-muted: #8b93a7;
+  --color-success: #2ecc71;
+  --color-error: #e74c3c;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: radial-gradient(ellipse at top, #1a1f2e 0%, var(--color-surface) 60%);
+  color: #eef1f8;
+  min-height: 100vh;
+}
