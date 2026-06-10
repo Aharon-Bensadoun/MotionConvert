@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { mkdtemp, rm, stat } from "node:fs/promises";
+import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { spawn } from "node:child_process";
 import { checkPrerequisitesSync, convertHtmlToMp4, getRepoRoot } from "./index.js";
@@ -43,6 +43,90 @@ async function getVideoDurationSec(filePath: string): Promise<number> {
     proc.on("error", reject);
   });
 }
+
+/** Average luma (YAVG) of every frame, via ffprobe signalstats. */
+async function getFrameLumas(workDir: string, fileName: string): Promise<number[]> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(
+      "ffprobe",
+      [
+        "-v",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        `movie=${fileName},signalstats`,
+        "-show_entries",
+        "frame_tags=lavfi.signalstats.YAVG",
+        "-of",
+        "csv=p=0",
+      ],
+      // Relative movie= filename avoids Windows drive-colon escaping in lavfi.
+      { shell: process.platform === "win32", cwd: workDir },
+    );
+
+    let stdout = "";
+    proc.stdout?.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+
+    proc.on("close", (code) => {
+      if (code !== 0) reject(new Error(`ffprobe signalstats failed (code ${code})`));
+      else {
+        resolve(
+          stdout
+            .trim()
+            .split(/\r?\n/)
+            .map((line) => parseFloat(line)),
+        );
+      }
+    });
+
+    proc.on("error", reject);
+  });
+}
+
+describe.skipIf(!hasPrerequisites())("integration: timing fidelity", () => {
+  it("fires a JS timer at the right virtual time (flip at 950ms)", async () => {
+    const workDir = await mkdtemp(join(tmpdir(), "motionconvert-timing-"));
+    const htmlPath = join(workDir, "flip.html");
+    const outputPath = join(workDir, "output.mp4");
+
+    await writeFile(
+      htmlPath,
+      `<!doctype html>
+<html><head><style>html,body{margin:0;background:#000}</style></head>
+<body><script>setTimeout(function(){document.body.style.background='#fff';},950);</script></body></html>`,
+      "utf8",
+    );
+
+    try {
+      await convertHtmlToMp4({
+        htmlPath,
+        outputPath,
+        settings: {
+          preset: "1:1",
+          fps: 10,
+          durationSec: 2,
+          autoDuration: false,
+          format: "mp4",
+        },
+        workDir,
+      });
+
+      const lumas = await getFrameLumas(workDir, "output.mp4");
+      expect(lumas).toHaveLength(20);
+
+      // Frames 0-9 cover t=0..900ms (black); frames 10-19 cover t>=1000ms (white).
+      const before = lumas.slice(0, 10);
+      const after = lumas.slice(10);
+      expect(Math.max(...before)).toBeLessThan(50);
+      expect(Math.min(...after)).toBeGreaterThan(200);
+    } finally {
+      await rm(workDir, { recursive: true, force: true });
+    }
+  }, 120_000);
+});
 
 describe.skipIf(!hasPrerequisites())("integration: HTML to MP4", () => {
   it("converts EvaMedical HTML at full 30s duration (16:9, 30fps)", async () => {

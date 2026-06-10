@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   detectDurationFromHtml,
+  installVirtualTime,
   parseDurationFromCssVar,
   resolveDurationSec,
-  seekToTime,
 } from "./timeline.js";
 
 describe("parseDurationFromCssVar", () => {
@@ -62,27 +62,123 @@ describe("resolveDurationSec", () => {
   });
 });
 
-describe("seekToTime", () => {
-  it("passes timeMs to page.evaluate and waits for paint", async () => {
-    const page = {
-      evaluate: vi.fn(async (fn: unknown, t?: number) => {
-        if (typeof t === "number") return;
-        const prev = globalThis.requestAnimationFrame;
-        globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
-          cb(0);
-          return 0;
-        };
-        try {
-          await (fn as () => Promise<void>)();
-        } finally {
-          globalThis.requestAnimationFrame = prev;
+describe("installVirtualTime", () => {
+  interface SentCommand {
+    method: string;
+    params?: Record<string, unknown>;
+  }
+
+  function createFakeCdp() {
+    const listeners = new Map<string, (event: unknown) => void>();
+    const sent: SentCommand[] = [];
+
+    const client = {
+      send: vi.fn(async (method: string, params?: Record<string, unknown>) => {
+        sent.push({ method, params });
+        if (method === "Emulation.setVirtualTimePolicy") {
+          if (params?.budget !== undefined) {
+            queueMicrotask(() => listeners.get("Emulation.virtualTimeBudgetExpired")?.({}));
+            return {};
+          }
+          return { virtualTimeTicksBase: 1000 };
         }
+        if (method === "HeadlessExperimental.beginFrame") {
+          return { hasDamage: true, screenshotData: Buffer.from("img").toString("base64") };
+        }
+        return {};
       }),
+      once: vi.fn((event: string, cb: (e: unknown) => void) => {
+        listeners.set(event, cb);
+      }),
+      off: vi.fn((event: string) => {
+        listeners.delete(event);
+      }),
+      detach: vi.fn(async () => {}),
     };
 
-    await seekToTime(page as never, 1500);
+    const page = {
+      context: () => ({ newCDPSession: async () => client }),
+    };
 
-    expect(page.evaluate).toHaveBeenCalledWith(expect.any(Function), 1500);
-    expect(page.evaluate).toHaveBeenCalledTimes(2);
+    return { client, page, sent };
+  }
+
+  it("pauses virtual time then issues an initial beginFrame", async () => {
+    const { page, sent } = createFakeCdp();
+
+    await installVirtualTime(page as never);
+
+    expect(sent).toEqual([
+      { method: "Emulation.setVirtualTimePolicy", params: { policy: "pause" } },
+      {
+        method: "HeadlessExperimental.beginFrame",
+        params: { frameTimeTicks: 1000, noDisplayUpdates: false },
+      },
+    ]);
+  });
+
+  it("advances in 16ms chunks with animation beginFrames at boundaries", async () => {
+    const { page, sent } = createFakeCdp();
+
+    const vt = await installVirtualTime(page as never);
+    await vt.tick(33);
+
+    const afterInstall = sent.slice(2);
+    expect(afterInstall.map((c) => ({ m: c.method, p: c.params }))).toEqual([
+      // chunk to first 16ms boundary
+      {
+        m: "Emulation.setVirtualTimePolicy",
+        p: expect.objectContaining({ policy: "pauseIfNetworkFetchesPending", budget: 16 }),
+      },
+      {
+        m: "HeadlessExperimental.beginFrame",
+        p: { frameTimeTicks: 1016, noDisplayUpdates: true },
+      },
+      { m: "Emulation.setVirtualTimePolicy", p: expect.objectContaining({ budget: 16 }) },
+      {
+        m: "HeadlessExperimental.beginFrame",
+        p: { frameTimeTicks: 1032, noDisplayUpdates: true },
+      },
+      // remainder of the 33ms budget
+      { m: "Emulation.setVirtualTimePolicy", p: expect.objectContaining({ budget: 1 }) },
+    ]);
+  });
+
+  it("captures a screenshot stamped at the current virtual time", async () => {
+    const { page, sent } = createFakeCdp();
+
+    const vt = await installVirtualTime(page as never);
+    await vt.tick(33);
+    const image = await vt.captureScreenshot("jpeg", 90);
+
+    expect(image).toEqual(Buffer.from("img"));
+    const capture = sent[sent.length - 1];
+    expect(capture).toEqual({
+      method: "HeadlessExperimental.beginFrame",
+      params: { frameTimeTicks: 1033, screenshot: { format: "jpeg", quality: 90 } },
+    });
+  });
+
+  it("keeps beginFrame timestamps strictly increasing across screenshots", async () => {
+    const { page, sent } = createFakeCdp();
+
+    const vt = await installVirtualTime(page as never);
+    await vt.captureScreenshot("png");
+    await vt.captureScreenshot("png");
+
+    const captures = sent.filter(
+      (c) => c.method === "HeadlessExperimental.beginFrame" && c.params?.screenshot,
+    );
+    const [first, second] = captures.map((c) => c.params!.frameTimeTicks as number);
+    expect(second).toBeGreaterThan(first);
+  });
+
+  it("rejects when the CDP command fails", async () => {
+    const { client, page } = createFakeCdp();
+    const vt = await installVirtualTime(page as never);
+
+    client.send.mockRejectedValueOnce(new Error("Target closed"));
+
+    await expect(vt.tick(16)).rejects.toThrow("Target closed");
   });
 });

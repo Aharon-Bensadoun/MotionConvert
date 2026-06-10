@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { chromium, type Browser, type Page } from "playwright";
 import {
@@ -10,10 +10,11 @@ import {
 } from "@motionconvert/shared";
 import { serveHtmlFile } from "./server.js";
 import {
-  prepareExport,
+  installVirtualTime,
   probeTimelineDuration,
+  pumpVirtualTimeUntil,
   resolveDurationSec,
-  seekToTime,
+  VIRTUAL_TIME_BROWSER_ARGS,
 } from "./timeline.js";
 
 export interface CaptureOptions {
@@ -32,24 +33,10 @@ export interface CaptureResult {
 }
 
 const EXPORT_CSS = `
-  /* MotionConvert export overrides */
+  /* MotionConvert export overrides — hide player chrome, never touch timing */
   body { margin: 0 !important; padding: 0 !important; overflow: hidden !important; }
-  .controls, .hud, .toolbar, .debug, [data-export-hide="true"] { display: none !important; }
-
-  /* Stop infinite animation loops during export */
-  *, *::before, *::after {
-    animation-iteration-count: 1 !important;
-    animation-fill-mode: forwards !important;
-  }
-
-  /* Override prefers-reduced-motion (EvaMedical sets animations to 0.001s) */
-  @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-      animation-duration: unset !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: unset !important;
-    }
-  }
+  .controls, .hud, .toolbar, .debug, .tip, .replay,
+  [data-export-hide="true"] { display: none !important; }
 `;
 
 const FRAME_FORMAT = (process.env.FRAME_FORMAT ?? "jpeg").toLowerCase() as "jpeg" | "png";
@@ -57,20 +44,22 @@ const FRAME_QUALITY = Number(process.env.FRAME_QUALITY ?? "90");
 
 async function injectExportStyles(page: Page): Promise<void> {
   await page.addStyleTag({ content: EXPORT_CSS });
-  await page.evaluate(() => {
-    document.querySelectorAll(".controls, .hud, .toolbar, .debug").forEach((el) => {
-      (el as HTMLElement).style.display = "none";
-    });
-  });
 }
 
 async function waitForPageReady(page: Page): Promise<void> {
   await page.waitForLoadState("networkidle", { timeout: 60_000 }).catch(() => {});
-  await page.evaluate(async () => {
-    if (document.fonts?.ready) {
-      await document.fonts.ready;
-    }
-  });
+  // The page clock is frozen here: fonts load over real network, but never
+  // block on anything timer-driven — cap the wait harness-side.
+  await Promise.race([
+    page
+      .evaluate(async () => {
+        if (document.fonts?.ready) {
+          await document.fonts.ready;
+        }
+      })
+      .catch(() => {}),
+    new Promise((resolve) => setTimeout(resolve, 10_000)),
+  ]);
   await page.waitForTimeout(200);
 }
 
@@ -90,15 +79,26 @@ export async function captureFrames(options: CaptureOptions): Promise<CaptureRes
   let browser: Browser | undefined;
 
   try {
-    browser = await chromium.launch({ headless: true });
+    // Deterministic rendering mode: frames are produced exclusively through
+    // CDP beginFrames stamped with the virtual clock (headless shell only).
+    browser = await chromium.launch({ headless: true, args: VIRTUAL_TIME_BROWSER_ARGS });
     const page = await browser.newPage({
       viewport: { width, height },
       deviceScaleFactor: 1,
+      // Some fixtures collapse animation durations under reduced motion.
+      reducedMotion: "no-preference",
     });
 
-    await page.goto(server.url, { waitUntil: "domcontentloaded", timeout: 60_000 });
-    // Stop timer-driven autoplay before it can mutate DOM (Judayka starts at 450ms).
-    await prepareExport(page);
+    // Freeze the page clock BEFORE navigation: timers, rAF and CSS animations
+    // then only advance when we grant virtual time, one frame at a time.
+    const virtualTime = await installVirtualTime(page);
+
+    // Navigation/parsing only progress when virtual time advances: pump small
+    // budgets until the DOM is ready. `pumpedMs` becomes the clock origin.
+    const { pumpedMs } = await pumpVirtualTimeUntil(
+      virtualTime,
+      page.goto(server.url, { waitUntil: "domcontentloaded", timeout: 60_000 }),
+    );
     await waitForPageReady(page);
     await injectExportStyles(page);
 
@@ -120,16 +120,31 @@ export async function captureFrames(options: CaptureOptions): Promise<CaptureRes
 
     const totalFrames = computeTotalFrames(durationSec, settings.fps);
 
+    // Frame N is captured at virtual time origin + N*1000/fps. Integer-ms
+    // targets with delta ticks keep cumulative drift below 1ms.
+    let clockMs = pumpedMs;
+    let previousFrame: Buffer | null = null;
     for (let frame = 0; frame < totalFrames; frame++) {
-      const timeMs = (frame / settings.fps) * 1000;
-      await seekToTime(page, timeMs);
+      const targetMs = pumpedMs + Math.round((frame * 1000) / settings.fps);
+      if (targetMs > clockMs) {
+        await virtualTime.tick(targetMs - clockMs);
+        clockMs = targetMs;
+      }
+
+      // beginFrame may return no data while the renderer initializes; retry,
+      // then fall back to the previous (unchanged) frame.
+      let image = await virtualTime.captureScreenshot(FRAME_FORMAT, FRAME_QUALITY);
+      for (let attempt = 0; !image && attempt < 3 && !previousFrame; attempt++) {
+        image = await virtualTime.captureScreenshot(FRAME_FORMAT, FRAME_QUALITY);
+      }
+      if (!image) image = previousFrame;
+      if (!image) {
+        throw new Error(`Failed to capture frame ${frame}: renderer produced no image`);
+      }
+      previousFrame = image;
 
       const framePath = join(framesDir, `frame_${String(frame).padStart(6, "0")}.${ext}`);
-      if (FRAME_FORMAT === "jpeg") {
-        await page.screenshot({ path: framePath, type: "jpeg", quality: FRAME_QUALITY });
-      } else {
-        await page.screenshot({ path: framePath, type: "png" });
-      }
+      await writeFile(framePath, image);
 
       if (onProgress) {
         await onProgress(computeProgress(frame + 1, totalFrames));

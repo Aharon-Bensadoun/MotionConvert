@@ -4,10 +4,9 @@ export {
   parseDurationFromCssVar,
   detectDurationFromHtml,
   probeTimelineDuration,
-  seekToTime,
-  prepareExport,
+  installVirtualTime,
   resolveDurationSec,
 } from "./timeline.js";
-export type { TimelineInfo } from "./timeline.js";
+export type { TimelineInfo, VirtualTimeController } from "./timeline.js";
 export { serveHtmlFile, getRepoRoot } from "./server.js";
 export { checkPrerequisitesSync, checkFfmpeg, checkChromium } from "./prerequisites.js";
