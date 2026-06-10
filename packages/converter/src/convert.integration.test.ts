@@ -92,11 +92,14 @@ describe.skipIf(!hasPrerequisites())("integration: timing fidelity", () => {
     const htmlPath = join(workDir, "flip.html");
     const outputPath = join(workDir, "output.mp4");
 
+    // Note: a full-viewport div is used on purpose — dynamically changing the
+    // BODY background hits a Chromium repaint quirk (viewport propagation).
     await writeFile(
       htmlPath,
       `<!doctype html>
-<html><head><style>html,body{margin:0;background:#000}</style></head>
-<body><script>setTimeout(function(){document.body.style.background='#fff';},950);</script></body></html>`,
+<html><head><style>html,body{margin:0}#box{position:fixed;inset:0;background:#000}</style></head>
+<body><div id="box"></div>
+<script>setTimeout(function(){document.getElementById('box').style.background='#fff';},950);</script></body></html>`,
       "utf8",
     );
 

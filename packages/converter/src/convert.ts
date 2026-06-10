@@ -80,8 +80,14 @@ export async function captureFrames(options: CaptureOptions): Promise<CaptureRes
 
   try {
     // Deterministic rendering mode: frames are produced exclusively through
-    // CDP beginFrames stamped with the virtual clock (headless shell only).
-    browser = await chromium.launch({ headless: true, args: VIRTUAL_TIME_BROWSER_ARGS });
+    // CDP beginFrames stamped with the virtual clock. BeginFrame control is
+    // officially supported in the Chromium headless shell (installed alongside
+    // chromium by `playwright install chromium`).
+    browser = await chromium.launch({
+      headless: true,
+      channel: "chromium-headless-shell",
+      args: VIRTUAL_TIME_BROWSER_ARGS,
+    });
     const page = await browser.newPage({
       viewport: { width, height },
       deviceScaleFactor: 1,

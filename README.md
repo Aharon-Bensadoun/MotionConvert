@@ -94,7 +94,11 @@ curl -X POST http://localhost:3001/api/jobs \
 1. HTML saved to `storage/uploads/{jobId}.html`
 2. Job enqueued in BullMQ (Redis)
 3. Worker serves HTML via local HTTP server (avoids `file://` CORS issues)
-4. Playwright Chromium captures frames at configured FPS (real-time MVP)
+4. Chromium headless shell captures frames under **CDP virtual time**: the page
+   clock is frozen before navigation and advanced by exactly `1000/fps` ms per
+   frame, so `setTimeout`/`setInterval`, `requestAnimationFrame`, CSS
+   animations/transitions and the Web Animations API all progress
+   deterministically — frame N always shows the page at exactly `N/fps` seconds
 5. FFmpeg encodes frames to H.264 MP4 (no audio in v1)
 6. Output written to `storage/outputs/{jobId}.mp4`
 
