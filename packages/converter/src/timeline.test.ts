@@ -43,7 +43,13 @@ describe("resolveDurationSec", () => {
     expect(result.warning).toBeUndefined();
   });
 
-  it("warns on manual mismatch over 5%", () => {
+  it("caps manual duration above detected timeline", () => {
+    const result = resolveDurationSec(49, false, { durationMs: 42000, source: "export-api" });
+    expect(result.durationSec).toBe(42);
+    expect(result.warning).toContain("capped");
+  });
+
+  it("warns on manual mismatch over 5% when below detected", () => {
     const result = resolveDurationSec(30, false, { durationMs: 50000, source: "export-api" });
     expect(result.durationSec).toBe(30);
     expect(result.warning).toContain("differs");
@@ -57,13 +63,26 @@ describe("resolveDurationSec", () => {
 });
 
 describe("seekToTime", () => {
-  it("passes timeMs to page.evaluate", async () => {
+  it("passes timeMs to page.evaluate and waits for paint", async () => {
     const page = {
-      evaluate: vi.fn(async () => {}),
+      evaluate: vi.fn(async (fn: unknown, t?: number) => {
+        if (typeof t === "number") return;
+        const prev = globalThis.requestAnimationFrame;
+        globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
+          cb(0);
+          return 0;
+        };
+        try {
+          await (fn as () => Promise<void>)();
+        } finally {
+          globalThis.requestAnimationFrame = prev;
+        }
+      }),
     };
 
     await seekToTime(page as never, 1500);
 
     expect(page.evaluate).toHaveBeenCalledWith(expect.any(Function), 1500);
+    expect(page.evaluate).toHaveBeenCalledTimes(2);
   });
 });

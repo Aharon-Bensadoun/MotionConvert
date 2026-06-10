@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@motionconvert/db";
 import {
+  type ConversionSettings,
   conversionSettingsSchema,
   jobIdParamSchema,
   MAX_UPLOAD_BYTES,
@@ -13,6 +14,16 @@ import {
 } from "@motionconvert/shared";
 import { resolveStoragePath, STORAGE_ROOT } from "../config.js";
 import { getQueue } from "../queue.js";
+
+export function parseSettingsField(settingsField: unknown): ConversionSettings {
+  if (!settingsField || Array.isArray(settingsField)) {
+    throw new Error("Missing settings field");
+  }
+
+  const raw = "value" in settingsField ? settingsField.value : settingsField;
+  const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+  return conversionSettingsSchema.parse(parsed);
+}
 
 function serializeJob(job: {
   id: string;
@@ -50,23 +61,6 @@ export async function registerJobRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(400).send({ error: "File must be .html or .htm" });
     }
 
-    const settingsField = data.fields.settings;
-    if (!settingsField || Array.isArray(settingsField)) {
-      return reply.status(400).send({ error: "Missing settings field" });
-    }
-
-    let settings;
-    try {
-      const raw = "value" in settingsField ? settingsField.value : settingsField;
-      const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-      settings = conversionSettingsSchema.parse(parsed);
-    } catch (err) {
-      return reply.status(400).send({
-        error: "Invalid settings",
-        details: err instanceof Error ? err.message : String(err),
-      });
-    }
-
     const jobId = randomUUID();
     const inputRelative = join("uploads", `${jobId}.html`);
     const outputRelative = join("outputs", `${jobId}.mp4`);
@@ -91,6 +85,19 @@ export async function registerJobRoutes(app: FastifyInstance): Promise<void> {
       writeStream.on("finish", resolve);
       writeStream.on("error", reject);
     });
+
+    let settings: ConversionSettings;
+    try {
+      settings = parseSettingsField(data.fields.settings);
+    } catch (err) {
+      if (err instanceof Error && err.message === "Missing settings field") {
+        return reply.status(400).send({ error: "Missing settings field" });
+      }
+      return reply.status(400).send({
+        error: "Invalid settings",
+        details: err instanceof Error ? err.message : String(err),
+      });
+    }
 
     const job = await prisma.conversionJob.create({
       data: {

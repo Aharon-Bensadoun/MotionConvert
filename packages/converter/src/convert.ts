@@ -97,6 +97,8 @@ export async function captureFrames(options: CaptureOptions): Promise<CaptureRes
     });
 
     await page.goto(server.url, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    // Stop timer-driven autoplay before it can mutate DOM (Judayka starts at 450ms).
+    await prepareExport(page);
     await waitForPageReady(page);
     await injectExportStyles(page);
 
@@ -117,8 +119,6 @@ export async function captureFrames(options: CaptureOptions): Promise<CaptureRes
     }
 
     const totalFrames = computeTotalFrames(durationSec, settings.fps);
-
-    await prepareExport(page);
 
     for (let frame = 0; frame < totalFrames; frame++) {
       const timeMs = (frame / settings.fps) * 1000;

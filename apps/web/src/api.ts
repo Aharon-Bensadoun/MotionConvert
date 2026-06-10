@@ -28,8 +28,8 @@ export interface CreateJobSettings {
 
 export async function createJob(file: File, settings: CreateJobSettings): Promise<JobResponse> {
   const form = new FormData();
-  form.append("file", file);
   form.append("settings", JSON.stringify(settings));
+  form.append("file", file);
 
   const res = await fetch("/api/jobs", { method: "POST", body: form });
   if (!res.ok) {

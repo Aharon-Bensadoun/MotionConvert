@@ -94,6 +94,14 @@ export async function seekToTime(page: Page, timeMs: number): Promise<void> {
       anim.currentTime = t;
     });
   }, timeMs);
+
+  // Let seek-driven style/DOM updates paint before screenshot.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }),
+  );
 }
 
 export function resolveDurationSec(
@@ -101,13 +109,20 @@ export function resolveDurationSec(
   autoDuration: boolean,
   probed: TimelineInfo,
 ): { durationSec: number; warning?: string } {
-  if (autoDuration && probed.source !== "fallback") {
-    const detectedSec = probed.durationMs / 1000;
-    return { durationSec: detectedSec };
-  }
-
   if (probed.source !== "fallback") {
     const detectedSec = probed.durationMs / 1000;
+
+    if (autoDuration) {
+      return { durationSec: detectedSec };
+    }
+
+    if (settingsDurationSec > detectedSec) {
+      return {
+        durationSec: detectedSec,
+        warning: `Duration capped from ${settingsDurationSec}s to detected ${detectedSec.toFixed(1)}s to avoid a frozen final scene`,
+      };
+    }
+
     const diff = Math.abs(detectedSec - settingsDurationSec) / detectedSec;
     if (diff > 0.05) {
       return {

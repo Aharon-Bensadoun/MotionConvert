@@ -900,6 +900,40 @@ window.__MOTIONCONVERT__ = {
     if (window._judaykaAutoStart) clearTimeout(window._judaykaAutoStart);
     paused = true;
     replay.classList.remove('show');
+    token++;
+    i = 0;
+    scenes.forEach(function(s) {
+      clearScene(s);
+      s.querySelectorAll('canvas.pcv').forEach(function(cv) { cv.remove(); });
+      s.querySelectorAll('.word').forEach(function(w) {
+        w.style.removeProperty('visibility');
+        w.style.removeProperty('opacity');
+        w.style.removeProperty('transform');
+        w.style.removeProperty('filter');
+        w.style.removeProperty('animation');
+      });
+      s.querySelectorAll('.brow,.bcam').forEach(function(el) {
+        el.style.removeProperty('transition');
+        el.style.removeProperty('clip-path');
+        el.style.removeProperty('transform');
+        el.style.removeProperty('opacity');
+        el.style.removeProperty('animation');
+      });
+      var vis = s.querySelector('.visual');
+      if (vis) vis.classList.remove('dust');
+    });
+    var cash = document.getElementById('cash');
+    if (cash) cash.innerHTML = '';
+    var fw = document.getElementById('fwcanvas');
+    if (fw) {
+      var fc = fw.getContext('2d');
+      if (fc) fc.clearRect(0, 0, fw.width, fw.height);
+    }
+    trans.className = 'trans';
+    flash.classList.remove('go');
+    fill.classList.remove('run');
+    fill.style.transitionDuration = '0ms';
+    fill.style.width = '0';
     document.querySelectorAll('.hud,.replay,.tip,.ctrl,.track,.dots').forEach(function(el) {
       el.style.display = 'none';
       el.setAttribute('aria-hidden', 'true');
@@ -921,12 +955,22 @@ window.__MOTIONCONVERT__ = {
     }
 
     var t = ms - INIT_DELAY;
+    var totalDur = DUR.reduce(function(a, b) { return a + b; }, 0);
     var sceneIdx = 0;
-    var offset = t;
-    for (var n = 0; n < DUR.length; n++) {
-      if (offset < DUR[n]) { sceneIdx = n; break; }
-      offset -= DUR[n];
-      if (n === DUR.length - 1) { sceneIdx = n; offset = DUR[n]; }
+    var offset = 0;
+    if (t >= totalDur) {
+      sceneIdx = DUR.length - 1;
+      offset = DUR[sceneIdx];
+    } else {
+      var elapsed = 0;
+      for (var n = 0; n < DUR.length; n++) {
+        if (t < elapsed + DUR[n]) {
+          sceneIdx = n;
+          offset = t - elapsed;
+          break;
+        }
+        elapsed += DUR[n];
+      }
     }
 
     scenes.forEach(function(s) { clearScene(s); });
@@ -950,12 +994,26 @@ window.__MOTIONCONVERT__ = {
       var interval = cfg.tick;
       var visibleCount = Math.min(words.length, Math.floor(offset / interval) + 1);
       words.forEach(function(w, k) {
+        w.className = w.className.replace(/\b(in|din-\w+|out-\w+)\b/g, '').trim();
+        w.style.removeProperty('visibility');
+        w.style.removeProperty('animation');
         if (k < visibleCount) {
           w.classList.add('in', 'din-' + (w.dataset.in || 'punch'));
+          var wordAge = offset - k * interval;
+          if (wordAge >= 420) {
+            w.style.animation = 'none';
+            w.style.opacity = '1';
+            w.style.transform = 'none';
+            w.style.filter = 'none';
+          }
           if (k > 0) {
             var p = words[k - 1];
             p.classList.remove('in');
             p.classList.add('out-' + (p.dataset.out || 'shatter'));
+            if (offset - (k - 1) * interval >= 420) {
+              p.style.animation = 'none';
+              p.style.opacity = '0';
+            }
           }
         }
       });
@@ -987,6 +1045,10 @@ window.__MOTIONCONVERT__ = {
         }
       }
     }
+    if (sceneIdx === 3) {
+      if (offset >= 680) doFlash();
+      if (offset >= 2350) spawnCash(my);
+    }
     if (sceneIdx === 7) {
       var p = Math.min(1, offset / 1300);
       var ease = 1 - Math.pow(1 - p, 3);
@@ -998,9 +1060,14 @@ window.__MOTIONCONVERT__ = {
     }
 
     document.getAnimations({ subtree: true }).forEach(function(a) {
+      var target = a.effect && a.effect.target;
+      if (target && target.classList && (target.classList.contains('word') || target.classList.contains('brow'))) {
+        return;
+      }
       a.pause();
       var timing = a.effect && a.effect.getComputedTiming ? a.effect.getComputedTiming() : null;
       var dur = timing && typeof timing.duration === 'number' ? timing.duration : offset;
+      if (dur === Infinity) dur = 10000;
       a.currentTime = Math.min(offset, dur);
     });
   }

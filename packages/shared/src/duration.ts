@@ -21,11 +21,12 @@ export function detectDurationFromHtml(html: string): number | null {
   }
 
   if (html.includes("const CFG=") || html.includes("const DUR=")) {
-    const durValues = [...html.matchAll(/dur:(\d+)/g)].map((m) => parseInt(m[1], 10));
+    const durValues = [...html.matchAll(/dur:\s*(\d+)/g)].map((m) => parseInt(m[1], 10));
     const explicitSum = durValues.reduce((a, b) => a + b, 0);
-    const tickCount = (html.match(/tick:\d+/g) || []).length;
-    const writeCount = (html.match(/write:1/g) || []).length;
-    const estimatedMs = explicitSum + tickCount * 4000 + writeCount * 3500 + 450;
+    const tickCount = (html.match(/tick:\s*\d+/g) || []).length;
+    const writeCount = (html.match(/write:\s*1/g) || []).length;
+    const initDelay = html.includes("INIT_DELAY") ? 450 : 0;
+    const estimatedMs = initDelay + explicitSum + tickCount * 3500 + writeCount * 3000;
     return Math.ceil(estimatedMs / 1000);
   }
 
