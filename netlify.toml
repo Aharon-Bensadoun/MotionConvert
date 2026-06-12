@@ -1,0 +1,6 @@
+[build]
+command = "pnpm --filter @motionconvert/shared build && pnpm --filter @motionconvert/web build"
+publish = "apps/web/dist"
+
+[build.environment]
+NODE_VERSION = "20"

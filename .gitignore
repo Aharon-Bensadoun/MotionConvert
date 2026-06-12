@@ -14,3 +14,5 @@ storage/work/*
 coverage/
 .turbo/
 *.log
+.netlify/
+*.tsbuildinfo
