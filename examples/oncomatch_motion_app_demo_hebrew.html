@@ -1,0 +1,887 @@
+<!--
+  OncoMatch Motion Design — "App Demo" (fusion mock screens + motion) — 1920×1080 Hebrew RTL
+  ~20.4s en boucle : intro → dashboard (clic patient) → dossier médical → upload recherche → comparaison AI → résultat 93% → outro.
+
+  MP4 Recording Guide:
+  1. Open in Chrome at fixed viewport 1920×1080 (no DevTools device emulation).
+  2. Append ?present=1 to hide the progress bar + hints for clean capture.
+  3. OBS Window / Browser Source capture, 30 fps. Record one full loop (20.4s).
+  4. Keys: Space = pause/resume · R = restart loop · P = presentation mode.
+  5. Export H.264, CRF 18–20. Verify Hebrew text readability before publishing.
+-->
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1920, initial-scale=1.0" />
+  <title>OncoMatch — Motion App Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      /* dark stage (motion) */
+      --bg1:#07111f; --bg2:#0d2f66; --bg3:#123a7d;
+      --card:rgba(255,255,255,.08); --line:rgba(255,255,255,.14);
+      --text:#f7fbff; --muted:#cfdbf0; --muted2:#9fb2cc;
+      --blue:#2f67f6; --blue2:#7aa7ff; --cyan:#70d8ff; --green:#3ad49a;
+      --shadow:0 28px 80px rgba(0,0,0,.42); --soft:0 12px 28px rgba(0,0,0,.18);
+      --font:"Heebo","Segoe UI",Arial,sans-serif;
+      /* light app (hub) */
+      --ink:#0f1830; --ink-muted:#69758a; --surface:#f0f2f6; --surface-line:#dde3ee;
+      --app-radius:22px;
+      --spring:cubic-bezier(.34,1.25,.64,1);
+      --land:cubic-bezier(.22,1.15,.42,1);
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#000;font-family:var(--font);color:var(--text)}
+    h1,h2,h3,h4,p{margin:0;font-family:inherit}
+    body{position:relative}
+    body.paused *{animation-play-state:paused!important}
+    body.present .film-progress,body.present .hint{display:none!important}
+
+    /* ============ Stage (dark cinematic background) ============ */
+    .stage{
+      position:absolute;inset:0;overflow:hidden;isolation:isolate;
+      background:
+        radial-gradient(circle at 12% 18%,rgba(122,167,255,.18),transparent 20%),
+        radial-gradient(circle at 86% 14%,rgba(47,103,246,.20),transparent 22%),
+        radial-gradient(circle at 52% 100%,rgba(112,216,255,.08),transparent 30%),
+        linear-gradient(135deg,var(--bg1),var(--bg2) 58%,var(--bg3));
+    }
+    .stage::before,.stage::after,.orb{content:"";position:absolute;border-radius:999px;background:rgba(255,255,255,.04);pointer-events:none}
+    .stage::before{width:650px;height:650px;right:-200px;top:-170px;animation:floatA 18s ease-in-out infinite}
+    .stage::after{width:320px;height:320px;left:150px;top:350px;animation:floatB 16s ease-in-out infinite}
+    .orb{width:430px;height:430px;left:-120px;bottom:-180px;animation:floatC 22s ease-in-out infinite}
+    .grid-overlay{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);background-size:48px 48px;mask-image:linear-gradient(to bottom,rgba(0,0,0,.20),rgba(0,0,0,.95));opacity:.45;pointer-events:none}
+
+    .topbar{position:absolute;top:26px;left:110px;right:110px;display:flex;align-items:center;justify-content:space-between;z-index:40}
+    .brand{display:flex;align-items:center;gap:12px;font-weight:900;letter-spacing:-.04em}
+    .logo{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(180deg,rgba(255,255,255,.18),rgba(255,255,255,.08));border:1px solid var(--line);box-shadow:inset 0 1px 0 rgba(255,255,255,.14),var(--soft)}
+    .lab-icon{display:block;flex:0 0 auto;color:#e8f2ff;width:26px;height:26px}
+    .brand-name{font-size:28px}
+    .top-meta{display:flex;align-items:center;gap:16px;font-size:14px;color:var(--muted)}
+    .demo-pill{padding:7px 12px;border-radius:999px;background:rgba(243,210,126,.12);border:1px solid rgba(243,210,126,.30);color:#ffe9b0;font-weight:700;font-size:13px}
+
+    /* ============ Virtual camera + app frame ============ */
+    #camera{position:absolute;inset:0;will-change:transform;z-index:10}
+    #camera.dim{filter:blur(12px) brightness(.5);transform:scale(.96)!important;transition:filter .9s ease,transform .9s ease!important}
+    .app-frame{position:absolute;top:118px;left:200px;right:200px;bottom:152px;opacity:0}
+    .app-frame.on{animation:appFrameIn .85s var(--land) forwards}
+    @keyframes appFrameIn{
+      0%{opacity:0;transform:perspective(1400px) rotateX(7deg) translateY(90px) scale(.94)}
+      60%{opacity:1;transform:perspective(1400px) rotateX(-1deg) translateY(-8px) scale(1.005)}
+      100%{opacity:1;transform:perspective(1400px) rotateX(0) translateY(0) scale(1)}
+    }
+
+    .app-screen{position:absolute;inset:0;opacity:0;visibility:hidden;transition:opacity .5s ease,visibility 0s linear .5s}
+    .app-screen.active{opacity:1;visibility:visible;z-index:2;transition:opacity .5s ease,visibility 0s;animation:screenIn .6s var(--land)}
+    @keyframes screenIn{
+      0%{transform:translateX(-46px) scale(.985)}
+      100%{transform:translateX(0) scale(1)}
+    }
+
+    /* ============ Light app shell (from mock screens hub) ============ */
+    .app-shell{width:100%;height:100%;border-radius:var(--app-radius);background:var(--surface);color:var(--ink);box-shadow:var(--shadow);overflow:hidden;display:grid;grid-template-rows:auto 1fr;border:1px solid rgba(255,255,255,.12)}
+    .app-nav{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#fff;border-bottom:1px solid var(--surface-line);min-height:56px}
+    .nav-links{display:flex;gap:6px;align-items:center}
+    .nav-link{padding:8px 14px;border-radius:10px;font-size:14px;font-weight:600;color:var(--ink-muted)}
+    .nav-link.active{background:rgba(47,103,246,.10);color:var(--blue);font-weight:700}
+    .nav-user{font-size:13px;color:var(--ink-muted);font-weight:600}
+    .app-body{padding:16px 22px;overflow:hidden;display:flex;flex-direction:column;min-height:0;background:linear-gradient(180deg,#f5f7fa,var(--surface));position:relative;flex:1}
+
+    .reveal{opacity:0}
+    .app-screen.active .reveal{animation:revealUp .65s var(--land) both}
+    .app-screen.active .d1{animation-delay:.10s}.app-screen.active .d2{animation-delay:.20s}
+    .app-screen.active .d3{animation-delay:.30s}.app-screen.active .d4{animation-delay:.40s}
+    .app-screen.active .d5{animation-delay:.50s}.app-screen.active .d6{animation-delay:.60s}
+    @keyframes revealUp{
+      0%{opacity:0;transform:translateY(20px) scale(.99)}
+      100%{opacity:1;transform:translateY(0) scale(1)}
+    }
+
+    .btn{height:38px;padding:0 16px;border-radius:11px;border:1px solid var(--surface-line);background:#fff;font-size:13px;font-weight:700;color:var(--ink);display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+    .btn-primary{background:linear-gradient(135deg,var(--blue),var(--blue2));border-color:transparent;color:#fff;box-shadow:0 8px 18px rgba(47,103,246,.22)}
+    .badge{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:800}
+    .badge-ok{background:rgba(58,212,154,.14);border:1px solid rgba(58,212,154,.34);color:#1a8f62}
+    .badge-warn{background:rgba(243,210,126,.18);border:1px solid rgba(243,210,126,.40);color:#9a7b1a}
+    .badge-muted{background:#e8ecf3;color:var(--ink-muted);border:1px solid var(--surface-line)}
+    .card{background:#fff;border:1px solid var(--surface-line);border-radius:16px;padding:14px 16px;box-shadow:0 2px 8px rgba(15,24,48,.04)}
+    .card-title{font-size:16px;font-weight:800;margin:0 0 10px}
+    .muted{font-size:13px;color:var(--ink-muted)}
+    .toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+    .toolbar-actions{display:flex;gap:8px}
+    .pressed{transform:scale(.96)!important;transition:transform .15s ease!important}
+
+    /* --- Screen: dashboard --- */
+    .dash-grid{display:grid;grid-template-columns:1.5fr .85fr;gap:14px;flex:1;min-height:0}
+    .dash-main,.dash-side{display:grid;gap:12px;align-content:start;min-height:0}
+    .cal-strip{display:flex;gap:8px;overflow:hidden}
+    .cal-day{flex:1;min-width:0;padding:10px 8px;border-radius:12px;background:#fff;border:1px solid var(--surface-line);text-align:center}
+    .cal-day.today{border-color:var(--blue);background:rgba(47,103,246,.06)}
+    .cal-day .dow{font-size:11px;color:var(--ink-muted);font-weight:600}
+    .cal-day .num{font-size:18px;font-weight:900;margin-top:4px}
+    .cal-day .cnt{font-size:10px;color:var(--ink-muted);margin-top:2px}
+    .patient-list{display:grid;gap:6px}
+    .patient-row{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:10px 12px;border-radius:12px;background:#fff;border:1px solid var(--surface-line);transition:border-color .25s,background .25s,box-shadow .25s,transform .25s}
+    .patient-row .name{font-weight:700;font-size:14px}
+    .patient-row .pid{font-size:12px;color:var(--ink-muted);margin-top:2px}
+    .patient-row.hovering{border-color:rgba(47,103,246,.45);box-shadow:0 4px 14px rgba(47,103,246,.16);transform:translateY(-1px)}
+    .patient-row.selected{border-color:var(--blue);background:rgba(47,103,246,.07);box-shadow:0 0 0 2px rgba(47,103,246,.22)}
+    .stats-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .stat-box{padding:14px;border-radius:14px;background:#fff;border:1px solid var(--surface-line)}
+    .stat-box .n{font-size:28px;font-weight:950;color:var(--blue)}
+    .stat-box .t{font-size:12px;color:var(--ink-muted);margin-top:4px;font-weight:600}
+
+    /* --- Screen: patient record --- */
+    .record-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;flex:1;min-height:0}
+    .diag-cards{display:grid;gap:10px}
+    .diag-card{position:relative;padding:14px;border-radius:14px;background:#fff;border:1px solid var(--surface-line);transition:border-color .35s,box-shadow .35s}
+    .diag-card .k{font-size:11px;font-weight:700;color:var(--ink-muted);letter-spacing:.03em}
+    .diag-card .v{font-size:18px;font-weight:800;margin-top:6px;transition:color .35s}
+    .diag-card.hl{border-color:rgba(47,103,246,.55);box-shadow:0 0 0 3px rgba(47,103,246,.16),0 10px 24px rgba(47,103,246,.14)}
+    .diag-card.hl .v{color:var(--blue)}
+    .diag-card.hl::after{content:"";position:absolute;inset:-4px;border-radius:18px;border:2px solid rgba(47,103,246,.5);animation:ringPing 1.1s ease-out 2;pointer-events:none}
+    @keyframes ringPing{0%{opacity:.9;transform:scale(1)}100%{opacity:0;transform:scale(1.10)}}
+    .linked-trials{display:grid;gap:8px}
+    .linked-item{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-radius:12px;background:#fff;border:1px solid var(--surface-line)}
+
+    /* --- Screen: trial upload --- */
+    .upload-center{flex:1;display:grid;place-items:center}
+    .upload-zone{width:760px;padding:38px 32px 30px;border-radius:20px;border:2px dashed rgba(47,103,246,.35);background:rgba(47,103,246,.04);text-align:center}
+    .upload-zone .icon{font-size:44px;margin-bottom:12px}
+    .upload-zone h3{font-size:20px;font-weight:800;margin:0 0 8px}
+    .upload-zone p{font-size:14px;color:var(--ink-muted);margin:0 0 16px;line-height:1.5}
+    .upload-file{display:inline-flex;align-items:center;gap:10px;padding:12px 18px;border-radius:12px;background:#fff;border:1px solid var(--surface-line);font-size:13px;font-weight:600;margin-top:16px;opacity:0}
+    .upload-file.show{animation:fileDrop .7s var(--spring) forwards}
+    @keyframes fileDrop{
+      0%{opacity:0;transform:translateY(-110px) rotate(-6deg) scale(.85)}
+      60%{opacity:1;transform:translateY(8px) rotate(2deg) scale(1.03)}
+      100%{opacity:1;transform:translateY(0) rotate(0) scale(1)}
+    }
+    .extract{margin-top:18px;display:grid;gap:10px;opacity:0;transition:opacity .3s}
+    .extract.run{opacity:1}
+    .extract-label{font-size:13px;color:var(--ink-muted);font-weight:700}
+    .extract-bar{height:10px;border-radius:999px;background:#e2e8f0;overflow:hidden}
+    .extract-fill{height:100%;width:0;border-radius:inherit;background:linear-gradient(90deg,var(--blue),var(--cyan))}
+    .extract.run .extract-fill{animation:barFill 1s ease-out forwards}
+    @keyframes barFill{to{width:100%}}
+    .extract-done{display:none;justify-self:center;align-items:center;gap:8px;padding:9px 16px;border-radius:999px;background:rgba(58,212,154,.14);border:1px solid rgba(58,212,154,.34);color:#1a8f62;font-size:14px;font-weight:800}
+    .extract.done .extract-done{display:inline-flex;animation:popIn .5s var(--spring) both}
+    .extract.done .extract-label{visibility:hidden}
+    @keyframes popIn{0%{opacity:0;transform:scale(.6)}70%{opacity:1;transform:scale(1.07)}100%{opacity:1;transform:scale(1)}}
+
+    /* --- Screen: compare --- */
+    .compare-wrap{position:relative;flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:14px}
+    .compare-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
+    .compare-svg path{fill:none;stroke:rgba(47,103,246,.55);stroke-width:2.5;stroke-linecap:round;stroke-dasharray:var(--len,400);stroke-dashoffset:var(--len,400)}
+    .compare-wrap.draw .line-r{animation:drawLine 1s var(--land) .05s forwards}
+    .compare-wrap.draw .line-l{animation:drawLine 1s var(--land) .25s forwards}
+    @keyframes drawLine{to{stroke-dashoffset:0}}
+    .scan{position:absolute;top:0;bottom:0;left:-180px;width:170px;z-index:3;pointer-events:none;opacity:0;background:linear-gradient(90deg,transparent,rgba(112,216,255,.22),rgba(47,103,246,.14),transparent)}
+    .scan.run{opacity:1;animation:scanSweep 2.3s cubic-bezier(.4,.1,.4,.95) forwards}
+    @keyframes scanSweep{to{transform:translateX(1700px)}}
+    .compare-grid{display:grid;grid-template-columns:1fr 220px 1fr;gap:24px;width:100%;align-items:stretch;position:relative;z-index:2}
+    .compare-col{padding:20px;border-radius:18px;background:#fff;border:1px solid var(--surface-line);box-shadow:var(--soft)}
+    .compare-col h3{font-size:18px;font-weight:900;margin:0 0 10px}
+    .compare-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+    .compare-chip{padding:8px 12px;border-radius:999px;background:rgba(47,103,246,.10);border:1px solid rgba(47,103,246,.18);font-size:13px;font-weight:700;color:var(--blue);transition:background .35s,border-color .35s,color .35s,box-shadow .35s,transform .35s}
+    .compare-chip.lit{background:rgba(58,212,154,.18);border-color:rgba(58,212,154,.55);color:#148257;box-shadow:0 0 0 3px rgba(58,212,154,.14);transform:scale(1.07)}
+    .compare-mid{border-radius:22px;display:grid;place-items:center;text-align:center;padding:18px;background:linear-gradient(165deg,rgba(47,103,246,.18),rgba(255,255,255,.95));border:1px solid rgba(47,103,246,.25);position:relative;overflow:hidden;align-self:center;min-height:180px;transition:box-shadow .4s}
+    .compare-mid::before{content:"";position:absolute;inset:-30%;background:conic-gradient(from 180deg,transparent,rgba(47,103,246,.14),transparent 32%);animation:spin 5s linear infinite;opacity:.45}
+    .compare-mid>div{position:relative;z-index:1}
+    .compare-mid .lab-wrap{width:46px;height:46px;margin:0 auto 8px;display:grid;place-items:center}
+    .compare-mid .lab-wrap .lab-icon{width:34px;height:34px;color:var(--blue)}
+    .compare-mid strong{display:block;font-size:19px;font-weight:900}
+    .compare-mid .sub{font-size:12px;color:var(--ink-muted);margin-top:4px}
+    .compare-mid.boost{animation:engineBoost .9s var(--spring) both;box-shadow:0 0 0 4px rgba(58,212,154,.22),0 18px 40px rgba(58,212,154,.18)}
+    @keyframes engineBoost{0%{transform:scale(1)}45%{transform:scale(1.10)}100%{transform:scale(1)}}
+
+    /* --- Result modal overlay --- */
+    .result-layer{position:absolute;inset:0;z-index:6;display:grid;place-items:center;border-radius:var(--app-radius);overflow:hidden;background:rgba(15,24,48,.38);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .45s ease}
+    .result-layer.show{opacity:1}
+    .result-modal{width:860px;background:#fff;border-radius:20px;border:1px solid var(--surface-line);box-shadow:0 30px 70px rgba(7,17,31,.40);overflow:hidden;color:var(--ink);opacity:0;transform:translateY(46px) scale(.9)}
+    .result-layer.show .result-modal{animation:modalPop .7s var(--spring) .08s forwards}
+    @keyframes modalPop{
+      0%{opacity:0;transform:translateY(46px) scale(.9)}
+      60%{opacity:1;transform:translateY(-8px) scale(1.02)}
+      100%{opacity:1;transform:translateY(0) scale(1)}
+    }
+    .modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid var(--surface-line);background:#fafbfc}
+    .modal-head h3{font-size:17px;font-weight:800}
+    .modal-close{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:#eef1f6;color:var(--ink-muted);font-size:19px}
+    .modal-body{padding:20px 22px}
+    .result-topline{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px}
+    .confidence{font-size:16px;font-weight:700;color:var(--ink-muted)}
+    .confidence strong{color:var(--ink);font-size:30px;font-weight:950;letter-spacing:-.03em}
+    .badge-ok-big{display:inline-flex;align-items:center;padding:9px 16px;border-radius:999px;background:rgba(58,212,154,.14);border:1px solid rgba(58,212,154,.34);color:#1a8f62;font-weight:800;font-size:15px;opacity:0;transform:scale(0)}
+    .result-layer.show .badge-ok-big{animation:badgeSlam .65s cubic-bezier(.34,1.56,.64,1) .55s forwards}
+    @keyframes badgeSlam{
+      0%{opacity:0;transform:scale(0) translateY(-18px)}
+      70%{opacity:1;transform:scale(1.12) translateY(2px)}
+      100%{opacity:1;transform:scale(1) translateY(0)}
+    }
+    .reason-block{font-size:14px;line-height:1.7;color:var(--ink);background:#f5f7fa;border:1px solid var(--surface-line);border-radius:14px;padding:14px 18px;opacity:0}
+    .result-layer.show .reason-block{animation:revealUp .6s var(--land) .75s both}
+    .reason-block p+p{margin-top:8px}
+    .kw-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+    .kw-chip{padding:8px 14px;border-radius:999px;background:rgba(47,103,246,.10);border:1px solid rgba(47,103,246,.18);font-size:13px;font-weight:700;color:var(--blue);opacity:0;transform:translateY(-30px) scale(.85)}
+    .result-layer.show .kw-chip:nth-child(1){animation:chipDrop .55s var(--spring) .95s forwards}
+    .result-layer.show .kw-chip:nth-child(2){animation:chipDrop .55s var(--spring) 1.05s forwards}
+    .result-layer.show .kw-chip:nth-child(3){animation:chipDrop .55s var(--spring) 1.15s forwards}
+    .result-layer.show .kw-chip:nth-child(4){animation:chipDrop .55s var(--spring) 1.25s forwards}
+    .result-layer.show .kw-chip:nth-child(5){animation:chipDrop .55s var(--spring) 1.35s forwards}
+    @keyframes chipDrop{
+      0%{opacity:0;transform:translateY(-30px) scale(.85)}
+      65%{opacity:1;transform:translateY(5px) scale(1.05)}
+      100%{opacity:1;transform:translateY(0) scale(1)}
+    }
+
+    /* ============ Cursor ============ */
+    #cursor{position:absolute;left:0;top:0;z-index:80;pointer-events:none;opacity:0;transform:translateX(1430px);transition:transform 0ms cubic-bezier(.5,.05,.25,1),opacity .4s ease}
+    #cursor.visible{opacity:1}
+    #cursor .cy{transform:translateY(930px);transition:transform 0ms cubic-bezier(.3,.1,.5,1)}
+    .cur-svg{display:block;filter:drop-shadow(0 4px 10px rgba(0,0,0,.45));transform-origin:6px 4px;transition:transform .14s ease}
+    #cursor.down .cur-svg{transform:scale(.82)}
+    .ripple{position:absolute;width:18px;height:18px;border-radius:50%;border:3px solid rgba(47,103,246,.9);z-index:78;pointer-events:none;animation:rippleGrow .65s ease-out forwards}
+    @keyframes rippleGrow{
+      0%{opacity:1;transform:translate(-50%,-50%) scale(.4)}
+      100%{opacity:0;transform:translate(-50%,-50%) scale(4.4)}
+    }
+
+    /* ============ Overlays: intro / outro ============ */
+    .overlay{position:absolute;inset:0;display:grid;place-items:center;text-align:center;z-index:60;opacity:0;pointer-events:none}
+    .overlay-inner{max-width:1240px;padding:0 80px}
+    .intro.active{opacity:1}
+    .intro.leaving{animation:introOut .55s ease forwards}
+    @keyframes introOut{to{opacity:0;transform:scale(1.07);filter:blur(12px)}}
+    .hero-logo{width:128px;height:128px;border-radius:34px;display:grid;place-items:center;background:linear-gradient(180deg,rgba(255,255,255,.20),rgba(255,255,255,.08));border:1px solid rgba(255,255,255,.18);box-shadow:var(--shadow);margin:0 auto 30px;opacity:0}
+    .hero-logo .lab-icon{width:66px;height:66px}
+    .intro.active .hero-logo{animation:logoSlam .8s var(--spring) .1s forwards}
+    .outro.show .hero-logo{animation:logoSlam .8s var(--spring) .05s forwards}
+    @keyframes logoSlam{
+      0%{opacity:0;transform:translateY(-150px) scale(.55) rotate(-8deg)}
+      52%{opacity:1;transform:translateY(16px) scale(1.08) rotate(2deg)}
+      72%{transform:translateY(-7px) scale(.97) rotate(-1deg)}
+      100%{opacity:1;transform:translateY(0) scale(1) rotate(0)}
+    }
+    .big-title{font-size:68px;line-height:1.1;letter-spacing:-.05em;font-weight:950}
+    .word{display:inline-block;opacity:0}
+    .intro.active .word{animation:wordDrop .7s var(--spring) both}
+    @keyframes wordDrop{
+      0%{opacity:0;filter:blur(8px);transform:translateY(-34px) scale(.9)}
+      55%{opacity:1;filter:blur(0);transform:translateY(6px) scale(1.04)}
+      100%{opacity:1;filter:blur(0);transform:translateY(0) scale(1)}
+    }
+    .sub{margin-top:20px;color:var(--muted);font-size:27px;line-height:1.45;opacity:0}
+    .intro.active .sub{animation:subUp .6s ease .95s both}
+    @keyframes subUp{
+      0%{opacity:0;transform:translateY(22px)}
+      100%{opacity:1;transform:translateY(0)}
+    }
+    .outro.show{animation:outroIn .7s var(--land) forwards}
+    @keyframes outroIn{0%{opacity:0;transform:scale(1.05)}100%{opacity:1;transform:scale(1)}}
+    .outro-title{font-size:96px;font-weight:950;letter-spacing:-.05em;opacity:0}
+    .outro.show .outro-title{animation:subUp .65s var(--land) .4s both}
+    .outro-tagline{margin-top:16px;font-size:32px;color:var(--muted);opacity:0}
+    .outro.show .outro-tagline{animation:subUp .65s var(--land) .6s both}
+    .outro-chip{display:inline-flex;margin-top:26px;padding:12px 24px;border-radius:999px;background:rgba(47,103,246,.18);border:1px solid rgba(122,167,255,.35);color:#ddecff;font-size:17px;font-weight:700;opacity:0}
+    .outro.show .outro-chip{animation:popIn .55s var(--spring) .85s both}
+
+    /* ============ Caption (kinetic lower third) ============ */
+    .caption{position:absolute;left:0;right:0;bottom:62px;display:flex;justify-content:center;z-index:55;pointer-events:none}
+    .caption-pill{padding:14px 32px;border-radius:999px;background:rgba(7,17,31,.78);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(12px);font-size:29px;font-weight:800;letter-spacing:-.02em;color:#eaf3ff;opacity:0;transform:translateY(24px)}
+    .caption-pill:empty{display:none}
+    .caption-pill.show{animation:capIn .5s var(--land) forwards}
+    .caption-pill.out{animation:capOut .45s ease forwards}
+    @keyframes capIn{to{opacity:1;transform:translateY(0)}}
+    @keyframes capOut{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(18px)}}
+    .cw{display:inline-block;opacity:0;animation:capWord .5s var(--spring) both}
+    @keyframes capWord{
+      0%{opacity:0;transform:translateY(22px) scale(.92)}
+      100%{opacity:1;transform:translateY(0) scale(1)}
+    }
+
+    /* ============ Chrome: progress / hint / disclaimer ============ */
+    .film-progress{position:absolute;left:0;bottom:0;height:5px;width:0;background:linear-gradient(90deg,var(--blue),var(--cyan));z-index:90;border-radius:0 4px 4px 0}
+    .hint{position:absolute;bottom:14px;left:24px;font-size:12px;color:var(--muted2);z-index:90;direction:ltr}
+    .disclaimer{position:absolute;left:110px;right:110px;bottom:20px;text-align:center;font-size:12px;line-height:1.5;color:var(--muted2);z-index:50}
+
+    @keyframes floatA{50%{transform:translate(-12px,16px)}}
+    @keyframes floatB{50%{transform:translate(14px,-10px)}}
+    @keyframes floatC{50%{transform:translate(-14px,12px)}}
+    @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+    @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+    <symbol id="oncomatch-lab-icon" viewBox="0 0 24 24">
+      <path d="M9 2.75h6c.414 0 .75.336.75.75v4.18l4.86 8.75A4.25 4.25 0 0 1 16.86 21H7.14a4.25 4.25 0 0 1-3.75-4.54l4.86-8.75V3.5c0-.414.336-.75.75-.75Z" fill="currentColor" opacity=".18"/>
+      <path d="M9 2.75h6M9 2.75c0-.966.784-1.75 1.75-1.75h2.5c.966 0 1.75.784 1.75 1.75M9.5 7.5h5l4.5 8.1a3.75 3.75 0 0 1-3.3 5.4H8.3a3.75 3.75 0 0 1-3.3-5.4L9.5 7.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="10.2" cy="13.8" r="1.1" fill="#70d8ff"/><circle cx="13.4" cy="15.6" r="1.3" fill="#7aa7ff"/><circle cx="11.6" cy="17.8" r=".9" fill="#3ad49a"/>
+    </symbol>
+  </svg>
+
+  <div class="stage" id="stage">
+    <div class="orb"></div>
+    <div class="grid-overlay"></div>
+
+    <div class="topbar">
+      <div class="top-meta">
+        <span></span>
+        <span></span>
+      </div>
+      <div class="brand">
+        <div class="logo"><svg class="lab-icon" viewBox="0 0 24 24"><use href="#oncomatch-lab-icon"></use></svg></div>
+        <div class="brand-name">OncoMatch</div>
+      </div>
+    </div>
+
+    <!-- ======== Virtual camera + real app screens ======== -->
+    <div id="camera">
+      <div class="app-frame" id="app-frame">
+
+        <!-- Screen 1: Dashboard -->
+        <section class="app-screen" id="scr-dash">
+          <div class="app-shell">
+            <div class="app-nav">
+              <div class="nav-links">
+                <span class="nav-link active">לוח בקרה</span>
+                <span class="nav-link">יחידה אונקולוגית</span>
+                <span class="nav-link">מחקרים קליניים</span>
+              </div>
+              <div class="nav-user"></div>
+            </div>
+            <div class="app-body">
+              <div class="toolbar reveal d1">
+                <h2 class="card-title" style="margin:0">לוח בקרה — תורים השבוע</h2>
+                <div class="toolbar-actions">
+                  <span class="btn btn-primary">נתח את כל המטופלים</span>
+                  <span class="btn">נתח את המטופל הנבחר</span>
+                </div>
+              </div>
+              <div class="dash-grid">
+                <div class="dash-main">
+                  <div class="card reveal d2">
+                    <div class="card-title">יומן — שבוע נוכחי</div>
+                    <div class="cal-strip">
+                      <div class="cal-day"><div class="dow">ב</div><div class="num">8</div><div class="cnt">2 מטופלים</div></div>
+                      <div class="cal-day"><div class="dow">ג</div><div class="num">9</div><div class="cnt">3 מטופלים</div></div>
+                      <div class="cal-day"><div class="dow">ד</div><div class="num">10</div><div class="cnt">2 מטופלים</div></div>
+                      <div class="cal-day"><div class="dow">ה</div><div class="num">11</div><div class="cnt">2 מטופלים</div></div>
+                      <div class="cal-day today"><div class="dow">ו</div><div class="num">12</div><div class="cnt">5 מטופלים</div></div>
+                      <div class="cal-day"><div class="dow">ש</div><div class="num">13</div><div class="cnt">—</div></div>
+                      <div class="cal-day"><div class="dow">א</div><div class="num">14</div><div class="cnt">3 מטופלים</div></div>
+                    </div>
+                  </div>
+                  <div class="card reveal d3">
+                    <div class="card-title">המטופלים שלי — </div>
+                    <div class="patient-list">
+                      <div class="patient-row" id="row-sara">
+                        <div><div class="name">שרה כ.</div><div class="pid">PID 4829173</div></div>
+                        <span class="badge badge-ok">מתאים</span><span class="muted">3/4</span>
+                      </div>
+                      <div class="patient-row">
+                        <div><div class="name">דוד מ.</div><div class="pid">PID 3910245</div></div>
+                        <span class="badge badge-warn">בהמתנה</span><span class="muted">1/4</span>
+                      </div>
+                      <div class="patient-row">
+                        <div><div class="name">רחל א.</div><div class="pid">PID 5581029</div></div>
+                        <span class="badge badge-ok">מתאים</span><span class="muted">2/4</span>
+                      </div>
+                      <div class="patient-row">
+                        <div><div class="name">יוסף ב.</div><div class="pid">PID 6203847</div></div>
+                        <span class="badge badge-warn">לא ברור</span><span class="muted">0/4</span>
+                      </div>
+                      <div class="patient-row">
+                        <div><div class="name">מירי ש.</div><div class="pid">PID 7102934</div></div>
+                        <span class="badge badge-ok">מתאים</span><span class="muted">2/4</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="dash-side">
+                  <div class="stats-row reveal d3">
+                    <div class="stat-box"><div class="n">27</div><div class="t">התאמות זמינות</div></div>
+                    <div class="stat-box"><div class="n">8</div><div class="t">דורשות סקירה</div></div>
+                  </div>
+                  <div class="card reveal d4">
+                    <div class="card-title">ניתוח התאמה</div>
+                    <p class="muted">מטופל נבחר: <strong>שרה כ.</strong></p>
+                    <p class="muted" style="margin-top:6px">PID: 4829173</p>
+                    <div style="margin-top:12px;display:flex;gap:8px">
+                      <span class="badge badge-ok">3 מתאימים</span>
+                      <span class="badge badge-warn">1 לא ברור</span>
+                    </div>
+                  </div>
+                  <div class="card reveal d5">
+                    <div class="card-title">עודכן לאחרונה</div>
+                    <p class="muted"> · 09:42</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Screen 2: Patient record -->
+        <section class="app-screen" id="scr-record">
+          <div class="app-shell">
+            <div class="app-nav">
+              <div class="nav-links">
+                <span class="nav-link">לוח בקרה</span>
+                <span class="nav-link active">יחידה אונקולוגית</span>
+                <span class="nav-link">מחקרים קליניים</span>
+              </div>
+              <div class="nav-user"></div>
+            </div>
+            <div class="app-body">
+              <div class="toolbar reveal d1">
+                <div>
+                  <h2 class="card-title" style="margin:0">סקירה כללית — שרה כ.</h2>
+                  <p class="muted">PID 4829173 · NSCLC — Adenocarcinoma · שלב IV</p>
+                </div>
+                <span class="btn btn-primary">נתח עכשיו</span>
+              </div>
+              <div class="record-grid">
+                <div>
+                  <div class="card reveal d2">
+                    <div class="card-title">סיכום קליני</div>
+                    <div class="diag-cards">
+                      <div class="diag-card reveal d2"><div class="k">אבחנה</div><div class="v">NSCLC — Adenocarcinoma</div></div>
+                      <div class="diag-card reveal d3"><div class="k">שלב המחלה</div><div class="v">שלב IV</div></div>
+                      <div class="diag-card reveal d4" id="card-egfr"><div class="k">שינויים גנטיים</div><div class="v">EGFR+ (exon 19 del)</div></div>
+                      <div class="diag-card reveal d5" id="card-pdl1"><div class="k">PD-L1</div><div class="v">45% TPS</div></div>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div class="card reveal d3">
+                    <div class="card-title">מחקרים קשורים</div>
+                    <div class="linked-trials">
+                      <div class="linked-item"><div><strong>MDX-2004-011</strong><div class="muted">מחקר Phase 1/2 בגידולים מתקדמים</div></div><span class="badge badge-ok">מתאים</span></div>
+                      <div class="linked-item"><div><strong>M25-760</strong><div class="muted">מחקר בשלב 1 עם טיפול משולב</div></div><span class="badge badge-muted">טרם נותח</span></div>
+                      <div class="linked-item"><div><strong>TCD17620</strong><div class="muted">מחקר בהסלמה והרחבת מינון</div></div><span class="badge badge-warn">לא ברור</span></div>
+                    </div>
+                  </div>
+                  <div class="card reveal d5" style="margin-top:12px">
+                    <div class="card-title">טיפולים סיסטמיים</div>
+                    <p class="muted">Osimertinib 80mg — קו ראשון · Carboplatin + Pemetrexed — קודם</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Screen 3: Trial upload / create -->
+        <section class="app-screen" id="scr-upload">
+          <div class="app-shell">
+            <div class="app-nav">
+              <div class="nav-links">
+                <span class="nav-link">לוח בקרה</span>
+                <span class="nav-link">יחידה אונקולוגית</span>
+                <span class="nav-link active">מחקרים קליניים</span>
+              </div>
+              <div class="nav-user"></div>
+            </div>
+            <div class="app-body">
+              <div class="toolbar reveal d1">
+                <h2 class="card-title" style="margin:0">מחקרים קליניים — ייבוא מקובץ</h2>
+                <div class="toolbar-actions">
+                  <span class="btn btn-primary">הוסף מחקר חדש</span>
+                  <span class="btn">ייצוא התאמות</span>
+                </div>
+              </div>
+              <div class="upload-center">
+                <div class="upload-zone reveal d2">
+                  <div class="icon">📄</div>
+                  <h3>ייבוא פרוטוקול מחקר</h3>
+                  <p>גרור ושחרר קובץ PDF של פרוטוקול מחקר, או לחץ לבחירת קובץ.<br/>המערכת תחלץ קריטריוני הכללה והחרגה באמצעות AI.</p>
+                  <span class="btn btn-primary" id="upload-btn">בחר קובץ</span>
+                  <div class="upload-file" id="file-chip">📎 protocol_MDX-2004-011.pdf · 2.4 MB</div>
+                  <div class="extract" id="extract">
+                    <div class="extract-label">ה-AI מחלץ קריטריוני הכללה והחרגה…</div>
+                    <div class="extract-bar"><div class="extract-fill"></div></div>
+                    <span class="extract-done">✓ המחקר MDX-2004-011 נוסף בהצלחה</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Screen 4: AI comparison + result modal -->
+        <section class="app-screen" id="scr-compare">
+          <div class="app-shell">
+            <div class="app-nav">
+              <div class="nav-links">
+                <span class="nav-link active">לוח בקרה</span>
+                <span class="nav-link">יחידה אונקולוגית</span>
+                <span class="nav-link">מחקרים קליניים</span>
+              </div>
+              <div class="nav-user"></div>
+            </div>
+            <div class="app-body">
+              <h2 class="card-title reveal d1">השוואת התאמה — MDX-2004-011</h2>
+              <div class="compare-wrap reveal d2" id="compare-wrap">
+                <svg class="compare-svg" viewBox="0 0 1480 360" preserveAspectRatio="none" aria-hidden="true">
+                  <path class="line-r" d="M 1140 180 C 1020 180, 960 180, 870 180" />
+                  <path class="line-l" d="M 340 180 C 460 180, 520 180, 610 180" />
+                </svg>
+                <div class="scan" id="scan"></div>
+                <div class="compare-grid">
+                  <div class="compare-col reveal d2">
+                    <h3>פרופיל מטופל</h3>
+                    <p class="muted">שרה כ. · PID 4829173</p>
+                    <div class="compare-chips">
+                      <span class="compare-chip" id="pc1">NSCLC</span>
+                      <span class="compare-chip" id="pc2">שלב IV</span>
+                      <span class="compare-chip" id="pc3">EGFR+ (exon 19 del)</span>
+                      <span class="compare-chip" id="pc4">PD-L1 45%</span>
+                      <span class="compare-chip">קו טיפול ראשון</span>
+                    </div>
+                  </div>
+                  <div class="compare-mid reveal d3" id="engine">
+                    <div>
+                      <div class="lab-wrap"><svg class="lab-icon" viewBox="0 0 24 24"><use href="#oncomatch-lab-icon"></use></svg></div>
+                      <strong>OncoMatch</strong>
+                      <div class="sub">מנוע התאמה מבוסס AI</div>
+                    </div>
+                  </div>
+                  <div class="compare-col reveal d4">
+                    <h3>קריטריוני מחקר</h3>
+                    <p class="muted">MDX-2004-011 · Phase 1/2</p>
+                    <div class="compare-chips">
+                      <span class="compare-chip" id="tc1">NSCLC מתקדם</span>
+                      <span class="compare-chip" id="tc2">שלב IIIB/IV</span>
+                      <span class="compare-chip" id="tc3">סטטוס EGFR</span>
+                      <span class="compare-chip" id="tc4">PD-L1 ≥1%</span>
+                      <span class="compare-chip">קו טיפול קודם</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="result-layer" id="result-layer">
+            <div class="result-modal">
+              <div class="modal-head">
+                <h3>MDX-2004-011 — מחקר Phase 1/2 בגידולים מתקדמים</h3>
+                <span class="modal-close">×</span>
+              </div>
+              <div class="modal-body">
+                <div class="result-topline">
+                  <div class="confidence">רמת ביטחון: <strong id="counter">0%</strong></div>
+                  <span class="badge-ok-big">התאמה פוטנציאלית</span>
+                </div>
+                <div class="reason-block">
+                  <p>פרופיל המטופלת תואם את סוג הגידול, ההיסטולוגיה ושלב המחלה הנדרשים במחקר.</p>
+                  <p>לא נמצאה החרגה קשיחה — EGFR+ ו-PD-L1 45% נלקחו בחשבון מול קריטריוני הפרוטוקול.</p>
+                </div>
+                <div class="kw-chips">
+                  <span class="kw-chip">אבחנה</span>
+                  <span class="kw-chip">שלב מחלה</span>
+                  <span class="kw-chip">ביומרקרים</span>
+                  <span class="kw-chip">EGFR+</span>
+                  <span class="kw-chip">PD-L1</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+
+    <!-- ======== Intro overlay ======== -->
+    <section class="overlay intro active" id="intro">
+      <div class="overlay-inner">
+        <div class="hero-logo"><svg class="lab-icon" viewBox="0 0 24 24"><use href="#oncomatch-lab-icon"></use></svg></div>
+        <h1 class="big-title" id="intro-title" data-text="התאמת מטופלים למחקרים קליניים — בלי לקרוא את כל התיק"></h1>
+        <p class="sub">AI שמחבר בין התיק הרפואי לקריטריוני המחקר</p>
+      </div>
+    </section>
+
+    <!-- ======== Outro overlay ======== -->
+    <section class="overlay outro" id="outro">
+      <div class="overlay-inner">
+        <div class="hero-logo"><svg class="lab-icon" viewBox="0 0 24 24"><use href="#oncomatch-lab-icon"></use></svg></div>
+        <h1 class="outro-title">OncoMatch</h1>
+        <p class="outro-tagline">לדעת בשניות אם המטופל מתאים למחקר קליני</p>
+        <span class="outro-chip">העלה מחקר · נתח מטופל · קבל תשובה מוסברת</span>
+      </div>
+    </section>
+
+    <!-- ======== Caption + cursor + chrome ======== -->
+    <div class="caption"><div class="caption-pill" id="caption-pill"></div></div>
+
+    <div id="cursor">
+      <div class="cy">
+        <svg class="cur-svg" width="30" height="32" viewBox="0 0 24 26">
+          <path d="M 4 1.5 L 4 20.5 L 8.8 16.2 L 11.9 23.6 L 15.2 22.2 L 12.1 14.9 L 18.6 14.4 Z"
+                fill="#fff" stroke="#0f1830" stroke-width="1.4" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </div>
+
+    <p class="disclaimer">⚠️ תוצאות ה-AI הן המלצתיות בלבד. כל החלטה קלינית חייבת להיבדק ולאשר על ידי הרופא המטפל.</p>
+    <div class="film-progress" id="film-progress"></div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const stage = $('stage'), camera = $('camera'), appFrame = $('app-frame');
+    const intro = $('intro'), outro = $('outro');
+    const scrDash = $('scr-dash'), scrRecord = $('scr-record'), scrUpload = $('scr-upload'), scrCompare = $('scr-compare');
+    const rowSara = $('row-sara'), cardEgfr = $('card-egfr'), cardPdl1 = $('card-pdl1');
+    const uploadBtn = $('upload-btn'), fileChip = $('file-chip'), extract = $('extract');
+    const compareWrap = $('compare-wrap'), scan = $('scan'), engine = $('engine');
+    const resultLayer = $('result-layer'), counterEl = $('counter');
+    const capPill = $('caption-pill'), prog = $('film-progress');
+    const cursorEl = $('cursor'), cursorY = cursorEl.querySelector('.cy');
+
+    /* ---------- undo registry: every timeline mutation is reversible for clean looping ---------- */
+    const undoStack = [];
+    const ripples = [];
+    function addCls(el, c) { el.classList.add(c); undoStack.push(() => el.classList.remove(c)); }
+    function rmCls(el, c) { el.classList.remove(c); undoStack.push(() => el.classList.add(c)); }
+    function setSty(el, p, v) { const old = el.style[p]; el.style[p] = v; undoStack.push(() => { el.style[p] = old; }); }
+
+    /* ---------- virtual camera ---------- */
+    const cam = { x: 0, y: 0, s: 1 };
+    function cameraSet(tx, ty, s, dur, ease) {
+      setSty(camera, 'transition', 'transform ' + dur + 'ms ' + (ease || 'cubic-bezier(.22,1.05,.35,1)'));
+      setSty(camera, 'transform', 'translate(' + tx + 'px,' + ty + 'px) scale(' + s + ')');
+      cam.x = tx; cam.y = ty; cam.s = s;
+    }
+    function cameraFocusEl(el, s, dur, ease) {
+      const r = el.getBoundingClientRect();
+      const cx = (r.left + r.width / 2 - 960 - cam.x) / cam.s + 960;
+      const cy = (r.top + r.height / 2 - 540 - cam.y) / cam.s + 540;
+      cameraSet(-(cx - 960) * s, -(cy - 540) * s, s, dur, ease);
+    }
+
+    /* ---------- animated cursor (two nested axes => curved bezier path) ---------- */
+    let curX = 1430, curY = 930;
+    function cursorMoveTo(x, y, dur) {
+      setSty(cursorEl, 'transitionDuration', dur + 'ms, 400ms');
+      setSty(cursorY, 'transitionDuration', dur + 'ms');
+      setSty(cursorEl, 'transform', 'translateX(' + x + 'px)');
+      setSty(cursorY, 'transform', 'translateY(' + y + 'px)');
+      curX = x; curY = y;
+    }
+    function cursorJump(x, y) {
+      cursorEl.style.transitionDuration = '0ms, 400ms';
+      cursorY.style.transitionDuration = '0ms';
+      cursorMoveTo(x, y, 0);
+      void cursorEl.offsetWidth;
+    }
+    function cursorToEl(el, dur, ox, oy) {
+      const r = el.getBoundingClientRect();
+      cursorMoveTo(r.left + r.width / 2 + (ox || 0), r.top + r.height / 2 + (oy || 0), dur);
+    }
+    function cursorShow() { addCls(cursorEl, 'visible'); }
+    function cursorHide() { rmCls(cursorEl, 'visible'); }
+    function click(targetEl) {
+      cursorEl.classList.add('down');
+      setTimeout(() => cursorEl.classList.remove('down'), 170);
+      const rip = document.createElement('div');
+      rip.className = 'ripple';
+      rip.style.left = curX + 'px';
+      rip.style.top = curY + 'px';
+      stage.appendChild(rip);
+      ripples.push(rip);
+      setTimeout(() => rip.remove(), 750);
+      if (targetEl) {
+        targetEl.classList.add('pressed');
+        setTimeout(() => targetEl.classList.remove('pressed'), 220);
+      }
+    }
+
+    /* ---------- kinetic caption (lower third) ---------- */
+    function caption(text) {
+      capPill.classList.remove('show', 'out');
+      capPill.style.animation = 'none';
+      void capPill.offsetWidth;
+      capPill.style.animation = '';
+      capPill.innerHTML = '';
+      text.split(/\s+/).forEach((w, i) => {
+        const s = document.createElement('span');
+        s.className = 'cw';
+        s.textContent = w;
+        s.style.animationDelay = (120 + i * 70) + 'ms';
+        capPill.appendChild(s);
+        capPill.appendChild(document.createTextNode(' '));
+      });
+      capPill.classList.add('show');
+    }
+
+    /* ---------- intro kinetic title ---------- */
+    function splitWords(el, staggerMs) {
+      const text = el.dataset.text || el.textContent.trim();
+      el.textContent = '';
+      text.split(/\s+/).forEach((word, i) => {
+        const span = document.createElement('span');
+        span.className = 'word';
+        span.textContent = word;
+        span.style.animationDelay = (i * 75 + 150) + 'ms';
+        el.appendChild(span);
+        el.appendChild(document.createTextNode(' '));
+      });
+    }
+
+    /* ---------- confidence counter (spring easing) ---------- */
+    let counterRaf = null;
+    function springEase(t) {
+      const c4 = (2 * Math.PI) / 3;
+      return t === 0 ? 0 : t === 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
+    }
+    function runCounter(el, target, duration) {
+      if (counterRaf) cancelAnimationFrame(counterRaf);
+      const start = performance.now();
+      function tick(now) {
+        const p = Math.min((now - start) / duration, 1);
+        el.textContent = Math.round(springEase(p) * target) + '%';
+        if (p < 1) counterRaf = requestAnimationFrame(tick);
+        else { el.textContent = target + '%'; counterRaf = null; }
+      }
+      el.textContent = '0%';
+      counterRaf = requestAnimationFrame(tick);
+    }
+
+    /* ---------- SVG path lengths for draw-on animation ---------- */
+    function initComparePaths() {
+      document.querySelectorAll('.compare-svg path').forEach(path => {
+        const len = path.getTotalLength();
+        path.style.setProperty('--len', len);
+        path.style.strokeDasharray = len;
+        path.style.strokeDashoffset = len;
+      });
+    }
+
+    /* ---------- restart CSS animations of a static subtree (intro) ---------- */
+    function replayTree(root) {
+      const els = [root, ...root.querySelectorAll('*')];
+      els.forEach(el => { el.style.animation = 'none'; });
+      void root.offsetWidth;
+      els.forEach(el => { el.style.animation = ''; });
+    }
+
+    /* ================== MASTER TIMELINE (~20.4s loop) ================== */
+    const STEPS = [
+      /* Scene 1 — intro (CSS-driven from .active) */
+      { t: 2200, run() { addCls(intro, 'leaving'); } },
+
+      /* Scene 2 — dashboard: cursor picks a patient */
+      { t: 2400, run() { addCls(appFrame, 'on'); addCls(scrDash, 'active'); } },
+      { t: 2800, run() { caption('בוחרים מטופל — בלחיצה אחת'); } },
+      { t: 3300, run() { cursorJump(1500, 950); cursorShow(); cursorToEl(rowSara, 950, 60, 4); } },
+      { t: 4350, run() { addCls(rowSara, 'hovering'); } },
+      { t: 4750, run() { click(rowSara); addCls(rowSara, 'selected'); } },
+      { t: 5050, run() { cameraFocusEl(rowSara, 1.55, 900, 'cubic-bezier(.3,.6,.2,1)'); } },
+      { t: 5750, run() { cursorHide(); } },
+
+      /* Scene 3 — patient record: zoom-through cut, clinical highlights */
+      { t: 5950, run() {
+          rmCls(scrDash, 'active');
+          cameraSet(0, 0, 1.12, 0, 'linear');
+          void camera.offsetWidth;
+          cameraSet(0, 0, 1, 1100, 'cubic-bezier(.22,1.05,.35,1)');
+          addCls(scrRecord, 'active');
+      } },
+      { t: 6350, run() { caption('כל התיק הרפואי — במקום אחד'); } },
+      { t: 7150, run() { addCls(cardEgfr, 'hl'); } },
+      { t: 7800, run() { addCls(cardPdl1, 'hl'); } },
+      { t: 8100, run() { cameraSet(-22, -12, 1.05, 2400, 'cubic-bezier(.4,0,.4,1)'); } },
+
+      /* Scene 4 — upload / create a clinical trial */
+      { t: 9400, run() {
+          caption('מעלים או יוצרים מחקר קליני');
+          rmCls(scrRecord, 'active');
+          addCls(scrUpload, 'active');
+          cameraSet(0, 0, 1, 700, 'ease');
+      } },
+      { t: 10150, run() { cursorJump(620, 960); cursorShow(); cursorToEl(uploadBtn, 700, 8, 6); } },
+      { t: 10950, run() { click(uploadBtn); } },
+      { t: 11100, run() { addCls(fileChip, 'show'); } },
+      { t: 11600, run() { addCls(extract, 'run'); } },
+      { t: 11850, run() { cursorHide(); } },
+      { t: 12650, run() { addCls(extract, 'done'); } },
+
+      /* Scene 5 — AI comparison: scan beam + matching pairs */
+      { t: 13100, run() {
+          caption('ה-AI משווה את התיק מול קריטריוני המחקר');
+          rmCls(scrUpload, 'active');
+          addCls(scrCompare, 'active');
+      } },
+      { t: 13700, run() { addCls(compareWrap, 'draw'); } },
+      { t: 13900, run() { addCls(scan, 'run'); } },
+      { t: 14250, run() { addCls($('pc1'), 'lit'); addCls($('tc1'), 'lit'); } },
+      { t: 14700, run() { addCls($('pc2'), 'lit'); addCls($('tc2'), 'lit'); } },
+      { t: 15150, run() { addCls($('pc3'), 'lit'); addCls($('tc3'), 'lit'); } },
+      { t: 15600, run() { addCls($('pc4'), 'lit'); addCls($('tc4'), 'lit'); addCls(engine, 'boost'); } },
+
+      /* Scene 6 — result modal + outro */
+      { t: 16200, run() { caption('התשובה בשניות — בלי לקרוא את כל התיק'); addCls(resultLayer, 'show'); } },
+      { t: 16650, run() { runCounter(counterEl, 93, 1200); } },
+      { t: 18450, run() { addCls(outro, 'show'); addCls(camera, 'dim'); addCls(capPill, 'out'); } },
+    ];
+    const T_TOTAL = 20400;
+
+    let elapsed = 0, lastTs = null, stepIdx = 0, paused = false;
+
+    function restart() {
+      for (let i = undoStack.length - 1; i >= 0; i--) undoStack[i]();
+      undoStack.length = 0;
+      ripples.forEach(r => r.remove());
+      ripples.length = 0;
+      if (counterRaf) { cancelAnimationFrame(counterRaf); counterRaf = null; }
+      counterEl.textContent = '0%';
+      capPill.classList.remove('show', 'out');
+      capPill.innerHTML = '';
+      camera.style.transition = 'none';
+      camera.style.transform = '';
+      cam.x = 0; cam.y = 0; cam.s = 1;
+      cursorEl.style.transitionDuration = '0ms, 400ms';
+      cursorY.style.transitionDuration = '0ms';
+      cursorEl.style.transform = 'translateX(1430px)';
+      cursorY.style.transform = 'translateY(930px)';
+      curX = 1430; curY = 930;
+      replayTree(intro);
+      void document.body.offsetWidth;
+      camera.style.transition = '';
+      elapsed = 0;
+      stepIdx = 0;
+    }
+
+    function frame(ts) {
+      if (lastTs === null) lastTs = ts;
+      if (!paused) elapsed += ts - lastTs;
+      lastTs = ts;
+      while (stepIdx < STEPS.length && STEPS[stepIdx].t <= elapsed) STEPS[stepIdx++].run();
+      prog.style.width = (Math.min(elapsed / T_TOTAL, 1) * 100) + '%';
+      if (elapsed >= T_TOTAL) restart();
+      requestAnimationFrame(frame);
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        paused = !paused;
+        document.body.classList.toggle('paused', paused);
+      } else if (e.key === 'r' || e.key === 'R') {
+        restart();
+      } else if (e.key === 'p' || e.key === 'P') {
+        document.body.classList.toggle('present');
+      }
+    });
+
+    splitWords($('intro-title'), 75);
+    initComparePaths();
+    if (new URLSearchParams(location.search).has('present')) document.body.classList.add('present');
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>

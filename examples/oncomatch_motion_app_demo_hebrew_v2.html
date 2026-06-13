@@ -1,0 +1,788 @@
+<!--
+  OncoMatch Motion Design — "Cohort Recruitment" variant — 1920×1080 Hebrew RTL
+  ~20.8s en boucle : intro → upload essai → bibliothèque d'essais (clic) → roster patients → matching cohorte (barres + %) → "3 מטופלים מתאימים" → outro.
+
+  Récit trial-first / matching inversé : on uploade un essai, on voit tous les essais,
+  on voit tous les patients avec leur dossier, et l'AI trouve QUELS patients sont compatibles.
+
+  MP4 Recording Guide:
+  1. Open in Chrome at fixed viewport 1920×1080 (no DevTools device emulation).
+  2. Append ?present=1 to hide the progress bar + hints for clean capture.
+  3. OBS Window / Browser Source capture, 30 fps. Record one full loop (~20.8s).
+  4. Keys: Space = pause/resume · R = restart loop · P = presentation mode.
+  5. Export H.264, CRF 18–20. Verify Hebrew text readability before publishing.
+-->
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1920, initial-scale=1.0" />
+  <title>OncoMatch — Motion Cohort Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      /* dark stage (motion) */
+      --bg1:#07111f; --bg2:#0d2f66; --bg3:#123a7d;
+      --card:rgba(255,255,255,.08); --line:rgba(255,255,255,.14);
+      --text:#f7fbff; --muted:#cfdbf0; --muted2:#9fb2cc;
+      --blue:#2f67f6; --blue2:#7aa7ff; --cyan:#70d8ff; --green:#3ad49a;
+      --shadow:0 28px 80px rgba(0,0,0,.42); --soft:0 12px 28px rgba(0,0,0,.18);
+      --font:"Heebo","Segoe UI",Arial,sans-serif;
+      /* light app (hub) */
+      --ink:#0f1830; --ink-muted:#69758a; --surface:#f0f2f6; --surface-line:#dde3ee;
+      --app-radius:22px;
+      --spring:cubic-bezier(.34,1.25,.64,1);
+      --land:cubic-bezier(.22,1.15,.42,1);
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#000;font-family:var(--font);color:var(--text)}
+    h1,h2,h3,h4,p{margin:0;font-family:inherit}
+    body{position:relative}
+    body.paused *{animation-play-state:paused!important}
+    body.present .film-progress,body.present .hint{display:none!important}
+
+    /* ============ Stage (dark cinematic background) ============ */
+    .stage{
+      position:absolute;inset:0;overflow:hidden;isolation:isolate;
+      background:
+        radial-gradient(circle at 12% 18%,rgba(122,167,255,.18),transparent 20%),
+        radial-gradient(circle at 86% 14%,rgba(47,103,246,.20),transparent 22%),
+        radial-gradient(circle at 52% 100%,rgba(112,216,255,.08),transparent 30%),
+        linear-gradient(135deg,var(--bg1),var(--bg2) 58%,var(--bg3));
+    }
+    .stage::before,.stage::after,.orb{content:"";position:absolute;border-radius:999px;background:rgba(255,255,255,.04);pointer-events:none}
+    .stage::before{width:650px;height:650px;right:-200px;top:-170px;animation:floatA 18s ease-in-out infinite}
+    .stage::after{width:320px;height:320px;left:150px;top:350px;animation:floatB 16s ease-in-out infinite}
+    .orb{width:430px;height:430px;left:-120px;bottom:-180px;animation:floatC 22s ease-in-out infinite}
+    .grid-overlay{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);background-size:48px 48px;mask-image:linear-gradient(to bottom,rgba(0,0,0,.20),rgba(0,0,0,.95));opacity:.45;pointer-events:none}
+
+    .topbar{position:absolute;top:26px;left:110px;right:110px;display:flex;align-items:center;justify-content:space-between;z-index:40}
+    .brand{display:flex;align-items:center;gap:12px;font-weight:900;letter-spacing:-.04em}
+    .logo{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(180deg,rgba(255,255,255,.18),rgba(255,255,255,.08));border:1px solid var(--line);box-shadow:inset 0 1px 0 rgba(255,255,255,.14),var(--soft)}
+    .lab-icon{display:block;flex:0 0 auto;color:#e8f2ff;width:26px;height:26px}
+    .brand-name{font-size:28px}
+    .top-meta{display:flex;align-items:center;gap:16px;font-size:14px;color:var(--muted)}
+    .demo-pill{padding:7px 12px;border-radius:999px;background:rgba(243,210,126,.12);border:1px solid rgba(243,210,126,.30);color:#ffe9b0;font-weight:700;font-size:13px}
+
+    /* ============ Virtual camera + app frame ============ */
+    #camera{position:absolute;inset:0;will-change:transform;z-index:10}
+    #camera.dim{filter:blur(12px) brightness(.5);transform:scale(.96)!important;transition:filter .9s ease,transform .9s ease!important}
+    .app-frame{position:absolute;top:118px;left:200px;right:200px;bottom:152px;opacity:0}
+    .app-frame.on{animation:appFrameIn .85s var(--land) forwards}
+    @keyframes appFrameIn{
+      0%{opacity:0;transform:perspective(1400px) rotateX(7deg) translateY(90px) scale(.94)}
+      60%{opacity:1;transform:perspective(1400px) rotateX(-1deg) translateY(-8px) scale(1.005)}
+      100%{opacity:1;transform:perspective(1400px) rotateX(0) translateY(0) scale(1)}
+    }
+
+    .app-screen{position:absolute;inset:0;opacity:0;visibility:hidden;transition:opacity .5s ease,visibility 0s linear .5s}
+    .app-screen.active{opacity:1;visibility:visible;z-index:2;transition:opacity .5s ease,visibility 0s;animation:screenIn .6s var(--land)}
+    @keyframes screenIn{
+      0%{transform:translateX(-46px) scale(.985)}
+      100%{transform:translateX(0) scale(1)}
+    }
+
+    /* ============ Light app shell ============ */
+    .app-shell{width:100%;height:100%;border-radius:var(--app-radius);background:var(--surface);color:var(--ink);box-shadow:var(--shadow);overflow:hidden;display:grid;grid-template-rows:auto 1fr;border:1px solid rgba(255,255,255,.12)}
+    .app-nav{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#fff;border-bottom:1px solid var(--surface-line);min-height:56px}
+    .nav-links{display:flex;gap:6px;align-items:center}
+    .nav-link{padding:8px 14px;border-radius:10px;font-size:14px;font-weight:600;color:var(--ink-muted)}
+    .nav-link.active{background:rgba(47,103,246,.10);color:var(--blue);font-weight:700}
+    .nav-user{font-size:13px;color:var(--ink-muted);font-weight:600}
+    .app-body{padding:16px 22px;overflow:hidden;display:flex;flex-direction:column;min-height:0;background:linear-gradient(180deg,#f5f7fa,var(--surface));position:relative;flex:1}
+
+    .reveal{opacity:0}
+    .app-screen.active .reveal{animation:revealUp .65s var(--land) both}
+    .app-screen.active .d1{animation-delay:.10s}.app-screen.active .d2{animation-delay:.20s}
+    .app-screen.active .d3{animation-delay:.30s}.app-screen.active .d4{animation-delay:.40s}
+    .app-screen.active .d5{animation-delay:.50s}.app-screen.active .d6{animation-delay:.60s}
+    @keyframes revealUp{
+      0%{opacity:0;transform:translateY(20px) scale(.99)}
+      100%{opacity:1;transform:translateY(0) scale(1)}
+    }
+
+    .btn{height:38px;padding:0 16px;border-radius:11px;border:1px solid var(--surface-line);background:#fff;font-size:13px;font-weight:700;color:var(--ink);display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+    .btn-primary{background:linear-gradient(135deg,var(--blue),var(--blue2));border-color:transparent;color:#fff;box-shadow:0 8px 18px rgba(47,103,246,.22)}
+    .badge{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:800}
+    .badge-ok{background:rgba(58,212,154,.14);border:1px solid rgba(58,212,154,.34);color:#1a8f62}
+    .badge-warn{background:rgba(243,210,126,.18);border:1px solid rgba(243,210,126,.40);color:#9a7b1a}
+    .badge-muted{background:#e8ecf3;color:var(--ink-muted);border:1px solid var(--surface-line)}
+    .badge-blue{background:rgba(47,103,246,.12);border:1px solid rgba(47,103,246,.28);color:var(--blue)}
+    .card{background:#fff;border:1px solid var(--surface-line);border-radius:16px;padding:14px 16px;box-shadow:0 2px 8px rgba(15,24,48,.04)}
+    .card-title{font-size:16px;font-weight:800;margin:0 0 10px}
+    .muted{font-size:13px;color:var(--ink-muted)}
+    .toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+    .toolbar-actions{display:flex;gap:8px}
+    .pressed{transform:scale(.96)!important;transition:transform .15s ease!important}
+
+    /* --- Screen: trial upload --- */
+    .upload-center{flex:1;display:grid;place-items:center}
+    .upload-zone{width:760px;padding:38px 32px 30px;border-radius:20px;border:2px dashed rgba(47,103,246,.35);background:rgba(47,103,246,.04);text-align:center}
+    .upload-zone .icon{font-size:44px;margin-bottom:12px}
+    .upload-zone h3{font-size:20px;font-weight:800;margin:0 0 8px}
+    .upload-zone p{font-size:14px;color:var(--ink-muted);margin:0 0 16px;line-height:1.5}
+    .upload-file{display:inline-flex;align-items:center;gap:10px;padding:12px 18px;border-radius:12px;background:#fff;border:1px solid var(--surface-line);font-size:13px;font-weight:600;margin-top:16px;opacity:0}
+    .upload-file.show{animation:fileDrop .7s var(--spring) forwards}
+    @keyframes fileDrop{
+      0%{opacity:0;transform:translateY(-110px) rotate(-6deg) scale(.85)}
+      60%{opacity:1;transform:translateY(8px) rotate(2deg) scale(1.03)}
+      100%{opacity:1;transform:translateY(0) rotate(0) scale(1)}
+    }
+    .extract{margin-top:18px;display:grid;gap:10px;opacity:0;transition:opacity .3s}
+    .extract.run{opacity:1}
+    .extract-label{font-size:13px;color:var(--ink-muted);font-weight:700}
+    .extract-bar{height:10px;border-radius:999px;background:#e2e8f0;overflow:hidden}
+    .extract-fill{height:100%;width:0;border-radius:inherit;background:linear-gradient(90deg,var(--blue),var(--cyan))}
+    .extract.run .extract-fill{animation:barFill 1s ease-out forwards}
+    @keyframes barFill{to{width:100%}}
+    .extract-done{display:none;justify-self:center;align-items:center;gap:8px;padding:9px 16px;border-radius:999px;background:rgba(58,212,154,.14);border:1px solid rgba(58,212,154,.34);color:#1a8f62;font-size:14px;font-weight:800}
+    .extract.done .extract-done{display:inline-flex;animation:popIn .5s var(--spring) both}
+    .extract.done .extract-label{visibility:hidden}
+    @keyframes popIn{0%{opacity:0;transform:scale(.6)}70%{opacity:1;transform:scale(1.07)}100%{opacity:1;transform:scale(1)}}
+
+    /* --- Screen: trials library --- */
+    .lib-head,.tl-row{display:grid;grid-template-columns:1.7fr .8fr .9fr auto;gap:12px;align-items:center}
+    .lib-head{padding:4px 14px 6px;font-size:12px;font-weight:700;color:var(--ink-muted)}
+    .trial-lib{display:grid;gap:8px}
+    .tl-row{padding:14px;border-radius:13px;background:#fff;border:1px solid var(--surface-line);transition:border-color .25s,background .25s,box-shadow .25s,transform .25s}
+    .tl-row.hovering{border-color:rgba(47,103,246,.45);box-shadow:0 4px 14px rgba(47,103,246,.16);transform:translateY(-1px)}
+    .tl-row.selected{border-color:var(--blue);background:rgba(47,103,246,.07);box-shadow:0 0 0 2px rgba(47,103,246,.22)}
+    .tl-name{font-weight:800;font-size:15px}
+    .tl-name .d{display:block;font-size:12px;color:var(--ink-muted);font-weight:600;margin-top:3px}
+    .tl-code{font-size:13px;font-weight:700;color:var(--ink)}
+    .tl-phase{font-size:13px;color:var(--ink-muted);font-weight:600}
+    .tl-matches{justify-self:start;display:inline-flex;align-items:baseline;gap:5px;font-weight:900;color:var(--blue);font-size:16px}
+    .tl-matches small{font-size:11px;color:var(--ink-muted);font-weight:700}
+
+    /* --- Screen: patient roster --- */
+    .rs-head,.rs-row{display:grid;grid-template-columns:210px 1.3fr .6fr 1.2fr;gap:12px;align-items:center}
+    .rs-head{padding:4px 14px 6px;font-size:12px;font-weight:700;color:var(--ink-muted)}
+    .roster{display:grid;gap:8px}
+    .rs-row{padding:13px 14px;border-radius:13px;background:#fff;border:1px solid var(--surface-line)}
+    .rs-row .name{font-weight:800;font-size:14px}
+    .rs-row .pid{font-size:11px;color:var(--ink-muted);margin-top:2px}
+    .rs-row .c{font-size:13px;font-weight:600}
+    .rs-row .bm{font-size:12px;color:var(--blue);font-weight:700}
+
+    /* --- Screen: cohort matching (climax) --- */
+    .cohort-engine{display:flex;align-items:center;gap:10px;padding:8px 14px;border-radius:13px;background:linear-gradient(165deg,rgba(47,103,246,.16),#fff);border:1px solid rgba(47,103,246,.24)}
+    .cohort-engine .lab-icon{width:28px;height:28px;color:var(--blue)}
+    .cohort-engine strong{display:block;font-size:14px;font-weight:900}
+    .cohort-engine span{font-size:11px;color:var(--ink-muted)}
+    .cohort-wrap{position:relative;flex:1;min-height:0;overflow:hidden;border-radius:14px}
+    .cohort-list{display:grid;gap:9px}
+    .cohort-row{display:grid;grid-template-columns:220px 1fr 62px 104px;gap:16px;align-items:center;padding:13px 16px;border-radius:13px;background:#fff;border:1px solid var(--surface-line);transition:border-color .4s,box-shadow .4s,opacity .4s}
+    .cohort-row .who .name{font-weight:800;font-size:15px}
+    .cohort-row .who .pid{font-size:11px;color:var(--ink-muted);margin-top:2px}
+    .cohort-row .prof{font-size:11px;color:var(--ink-muted);margin-top:4px}
+    .match-track{height:13px;border-radius:999px;background:#e6ebf2;overflow:hidden}
+    .match-fill{height:100%;width:0;border-radius:inherit;background:linear-gradient(90deg,var(--blue),var(--cyan));transition:width 1s cubic-bezier(.2,.75,.2,1)}
+    .cohort-row.lit .match-fill{width:var(--w)}
+    .cohort-row .pct{font-size:18px;font-weight:950;color:var(--ink-muted);opacity:0;transition:opacity .45s,color .45s;text-align:left;direction:ltr;letter-spacing:-.02em}
+    .cohort-row.lit .pct{opacity:1}
+    .cohort-row .verdict{opacity:0;transition:opacity .45s;justify-self:start}
+    .cohort-row.lit .verdict{opacity:1}
+    .cohort-row.ok .match-fill{background:linear-gradient(90deg,#23a875,var(--green))}
+    .cohort-row.warn .match-fill{background:linear-gradient(90deg,#e3b150,#f3d27e)}
+    .cohort-row.no .match-fill{background:linear-gradient(90deg,#9fb0c6,#c6d0de)}
+    .cohort-row.lit.ok{border-color:rgba(58,212,154,.5);box-shadow:0 0 0 2px rgba(58,212,154,.14)}
+    .cohort-row.lit.ok .pct{color:#1a8f62}
+    .cohort-row.lit.warn .pct{color:#9a7b1a}
+    .cohort-row.lit.no{opacity:.5}
+    .scan{position:absolute;top:0;bottom:0;left:-180px;width:170px;z-index:3;pointer-events:none;opacity:0;background:linear-gradient(90deg,transparent,rgba(112,216,255,.22),rgba(47,103,246,.14),transparent)}
+    .scan.run{opacity:1;animation:scanSweep 2.4s cubic-bezier(.4,.1,.4,.95) forwards}
+    @keyframes scanSweep{to{transform:translateX(1700px)}}
+    .cohort-summary{display:flex;align-items:center;justify-content:center;gap:20px;margin-top:14px}
+    .cohort-result{display:inline-flex;align-items:center;gap:8px;padding:11px 24px;border-radius:999px;background:rgba(58,212,154,.14);border:1px solid rgba(58,212,154,.42);color:#148257;font-size:19px;font-weight:950;opacity:0;transform:scale(.6)}
+    .cohort-result.show{animation:popIn .6s var(--spring) forwards}
+    .cohort-top{font-size:15px;font-weight:700;color:var(--ink-muted);opacity:0;transition:opacity .5s}
+    .cohort-top.show{opacity:1}
+    .cohort-top strong{color:var(--ink);font-size:24px;font-weight:950;direction:ltr;display:inline-block;letter-spacing:-.03em}
+
+    /* ============ Cursor ============ */
+    #cursor{position:absolute;left:0;top:0;z-index:80;pointer-events:none;opacity:0;transform:translateX(1430px);transition:transform 0ms cubic-bezier(.5,.05,.25,1),opacity .4s ease}
+    #cursor.visible{opacity:1}
+    #cursor .cy{transform:translateY(930px);transition:transform 0ms cubic-bezier(.3,.1,.5,1)}
+    .cur-svg{display:block;filter:drop-shadow(0 4px 10px rgba(0,0,0,.45));transform-origin:6px 4px;transition:transform .14s ease}
+    #cursor.down .cur-svg{transform:scale(.82)}
+    .ripple{position:absolute;width:18px;height:18px;border-radius:50%;border:3px solid rgba(47,103,246,.9);z-index:78;pointer-events:none;animation:rippleGrow .65s ease-out forwards}
+    @keyframes rippleGrow{
+      0%{opacity:1;transform:translate(-50%,-50%) scale(.4)}
+      100%{opacity:0;transform:translate(-50%,-50%) scale(4.4)}
+    }
+
+    /* ============ Overlays: intro / outro ============ */
+    .overlay{position:absolute;inset:0;display:grid;place-items:center;text-align:center;z-index:60;opacity:0;pointer-events:none}
+    .overlay-inner{max-width:1240px;padding:0 80px}
+    .intro.active{opacity:1}
+    .intro.leaving{animation:introOut .55s ease forwards}
+    @keyframes introOut{to{opacity:0;transform:scale(1.07);filter:blur(12px)}}
+    .hero-logo{width:128px;height:128px;border-radius:34px;display:grid;place-items:center;background:linear-gradient(180deg,rgba(255,255,255,.20),rgba(255,255,255,.08));border:1px solid rgba(255,255,255,.18);box-shadow:var(--shadow);margin:0 auto 30px;opacity:0}
+    .hero-logo .lab-icon{width:66px;height:66px}
+    .intro.active .hero-logo{animation:logoSlam .8s var(--spring) .1s forwards}
+    .outro.show .hero-logo{animation:logoSlam .8s var(--spring) .05s forwards}
+    @keyframes logoSlam{
+      0%{opacity:0;transform:translateY(-150px) scale(.55) rotate(-8deg)}
+      52%{opacity:1;transform:translateY(16px) scale(1.08) rotate(2deg)}
+      72%{transform:translateY(-7px) scale(.97) rotate(-1deg)}
+      100%{opacity:1;transform:translateY(0) scale(1) rotate(0)}
+    }
+    .big-title{font-size:64px;line-height:1.12;letter-spacing:-.05em;font-weight:950}
+    .word{display:inline-block;opacity:0}
+    .intro.active .word{animation:wordDrop .7s var(--spring) both}
+    @keyframes wordDrop{
+      0%{opacity:0;filter:blur(8px);transform:translateY(-34px) scale(.9)}
+      55%{opacity:1;filter:blur(0);transform:translateY(6px) scale(1.04)}
+      100%{opacity:1;filter:blur(0);transform:translateY(0) scale(1)}
+    }
+    .sub{margin-top:20px;color:var(--muted);font-size:27px;line-height:1.45;opacity:0}
+    .intro.active .sub{animation:subUp .6s ease .95s both}
+    @keyframes subUp{
+      0%{opacity:0;transform:translateY(22px)}
+      100%{opacity:1;transform:translateY(0)}
+    }
+    .outro.show{animation:outroIn .7s var(--land) forwards}
+    @keyframes outroIn{0%{opacity:0;transform:scale(1.05)}100%{opacity:1;transform:scale(1)}}
+    .outro-title{font-size:96px;font-weight:950;letter-spacing:-.05em;opacity:0}
+    .outro.show .outro-title{animation:subUp .65s var(--land) .4s both}
+    .outro-tagline{margin-top:16px;font-size:32px;color:var(--muted);opacity:0}
+    .outro.show .outro-tagline{animation:subUp .65s var(--land) .6s both}
+    .outro-chip{display:inline-flex;margin-top:26px;padding:12px 24px;border-radius:999px;background:rgba(47,103,246,.18);border:1px solid rgba(122,167,255,.35);color:#ddecff;font-size:17px;font-weight:700;opacity:0}
+    .outro.show .outro-chip{animation:popIn .55s var(--spring) .85s both}
+
+    /* ============ Caption (kinetic lower third) ============ */
+    .caption{position:absolute;left:0;right:0;bottom:62px;display:flex;justify-content:center;z-index:55;pointer-events:none}
+    .caption-pill{padding:14px 32px;border-radius:999px;background:rgba(7,17,31,.78);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(12px);font-size:29px;font-weight:800;letter-spacing:-.02em;color:#eaf3ff;opacity:0;transform:translateY(24px)}
+    .caption-pill:empty{display:none}
+    .caption-pill.show{animation:capIn .5s var(--land) forwards}
+    .caption-pill.out{animation:capOut .45s ease forwards}
+    @keyframes capIn{to{opacity:1;transform:translateY(0)}}
+    @keyframes capOut{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(18px)}}
+    .cw{display:inline-block;opacity:0;animation:capWord .5s var(--spring) both}
+    @keyframes capWord{
+      0%{opacity:0;transform:translateY(22px) scale(.92)}
+      100%{opacity:1;transform:translateY(0) scale(1)}
+    }
+
+    /* ============ Chrome: progress / hint / disclaimer ============ */
+    .film-progress{position:absolute;left:0;bottom:0;height:5px;width:0;background:linear-gradient(90deg,var(--blue),var(--cyan));z-index:90;border-radius:0 4px 4px 0}
+    .hint{position:absolute;bottom:14px;left:24px;font-size:12px;color:var(--muted2);z-index:90;direction:ltr}
+    .disclaimer{position:absolute;left:110px;right:110px;bottom:20px;text-align:center;font-size:12px;line-height:1.5;color:var(--muted2);z-index:50}
+
+    @keyframes floatA{50%{transform:translate(-12px,16px)}}
+    @keyframes floatB{50%{transform:translate(14px,-10px)}}
+    @keyframes floatC{50%{transform:translate(-14px,12px)}}
+    @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+    @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+    <symbol id="oncomatch-lab-icon" viewBox="0 0 24 24">
+      <path d="M9 2.75h6c.414 0 .75.336.75.75v4.18l4.86 8.75A4.25 4.25 0 0 1 16.86 21H7.14a4.25 4.25 0 0 1-3.75-4.54l4.86-8.75V3.5c0-.414.336-.75.75-.75Z" fill="currentColor" opacity=".18"/>
+      <path d="M9 2.75h6M9 2.75c0-.966.784-1.75 1.75-1.75h2.5c.966 0 1.75.784 1.75 1.75M9.5 7.5h5l4.5 8.1a3.75 3.75 0 0 1-3.3 5.4H8.3a3.75 3.75 0 0 1-3.3-5.4L9.5 7.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="10.2" cy="13.8" r="1.1" fill="#70d8ff"/><circle cx="13.4" cy="15.6" r="1.3" fill="#7aa7ff"/><circle cx="11.6" cy="17.8" r=".9" fill="#3ad49a"/>
+    </symbol>
+  </svg>
+
+  <div class="stage" id="stage">
+    <div class="orb"></div>
+    <div class="grid-overlay"></div>
+
+    <div class="topbar">
+      <div class="top-meta">
+        <span></span>
+        <span></span>
+      </div>
+      <div class="brand">
+        <div class="logo"><svg class="lab-icon" viewBox="0 0 24 24"><use href="#oncomatch-lab-icon"></use></svg></div>
+        <div class="brand-name">OncoMatch</div>
+      </div>
+    </div>
+
+    <!-- ======== Virtual camera + real app screens ======== -->
+    <div id="camera">
+      <div class="app-frame" id="app-frame">
+
+        <!-- Screen 1: Trial upload / create -->
+        <section class="app-screen" id="scr-upload">
+          <div class="app-shell">
+            <div class="app-nav">
+              <div class="nav-links">
+                <span class="nav-link">לוח בקרה</span>
+                <span class="nav-link">יחידה אונקולוגית</span>
+                <span class="nav-link active">מחקרים קליניים</span>
+              </div>
+              <div class="nav-user"></div>
+            </div>
+            <div class="app-body">
+              <div class="toolbar reveal d1">
+                <h2 class="card-title" style="margin:0">מחקרים קליניים — ייבוא פרוטוקול</h2>
+                <div class="toolbar-actions">
+                  <span class="btn btn-primary">הוסף מחקר חדש</span>
+                  <span class="btn">ייצוא התאמות</span>
+                </div>
+              </div>
+              <div class="upload-center">
+                <div class="upload-zone reveal d2">
+                  <div class="icon">📄</div>
+                  <h3>ייבוא פרוטוקול מחקר</h3>
+                  <p>גרור ושחרר קובץ PDF של פרוטוקול מחקר, או לחץ לבחירת קובץ.<br/>המערכת תחלץ קריטריוני הכללה והחרגה באמצעות AI.</p>
+                  <span class="btn btn-primary" id="upload-btn">בחר קובץ</span>
+                  <div class="upload-file" id="file-chip">📎 protocol_MDX-2004-011.pdf · 2.4 MB</div>
+                  <div class="extract" id="extract">
+                    <div class="extract-label">ה-AI מחלץ קריטריוני הכללה והחרגה…</div>
+                    <div class="extract-bar"><div class="extract-fill"></div></div>
+                    <span class="extract-done">✓ המחקר MDX-2004-011 נוסף בהצלחה</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Screen 2: Trials library -->
+        <section class="app-screen" id="scr-trials">
+          <div class="app-shell">
+            <div class="app-nav">
+              <div class="nav-links">
+                <span class="nav-link">לוח בקרה</span>
+                <span class="nav-link">יחידה אונקולוגית</span>
+                <span class="nav-link active">מחקרים קליניים</span>
+              </div>
+              <div class="nav-user"></div>
+            </div>
+            <div class="app-body">
+              <div class="toolbar reveal d1">
+                <div>
+                  <h2 class="card-title" style="margin:0">מחקרים קליניים — כל המחקרים</h2>
+                  <p class="muted">4 מחקרים פעילים · בחר מחקר כדי לגייס קוהורט מטופלים</p>
+                </div>
+                <span class="btn">ייבוא מקובץ</span>
+              </div>
+              <div class="card reveal d2" style="padding:8px 6px">
+                <div class="lib-head">
+                  <span>שם המחקר</span><span>קוד מחקר</span><span>שלב · סטטוס</span><span>התאמות מטופלים</span>
+                </div>
+                <div class="trial-lib">
+                  <div class="tl-row" id="trial-row">
+                    <div class="tl-name">מחקר Phase 1/2 בגידולים מתקדמים<span class="d">NSCLC מתקדם · רב-מרכזי</span></div>
+                    <span class="tl-code">MDX-2004-011</span>
+                    <span class="tl-phase">Phase 1/2 · <span class="badge badge-ok" style="margin-right:4px">פעיל</span></span>
+                    <span class="tl-matches">35 <small>מטופלים</small></span>
+                  </div>
+                  <div class="tl-row">
+                    <div class="tl-name">מחקר בשלב 1 עם טיפול משולב<span class="d">גידולים סולידיים מתקדמים</span></div>
+                    <span class="tl-code">M25-760</span>
+                    <span class="tl-phase">Phase 1 · <span class="badge badge-ok" style="margin-right:4px">פעיל</span></span>
+                    <span class="tl-matches">5 <small>מטופלים</small></span>
+                  </div>
+                  <div class="tl-row">
+                    <div class="tl-name">מחקר בהסלמה והרחבת מינון<span class="d">Dose escalation / expansion</span></div>
+                    <span class="tl-code">TCD17620</span>
+                    <span class="tl-phase">Phase 1 · <span class="badge badge-ok" style="margin-right:4px">פעיל</span></span>
+                    <span class="tl-matches">1 <small>מטופל</small></span>
+                  </div>
+                  <div class="tl-row">
+                    <div class="tl-name">מחקר מיון ראשוני לפרופיל מולקולרי<span class="d">Molecular screening</span></div>
+                    <span class="tl-code">M20-431</span>
+                    <span class="tl-phase">— · <span class="badge badge-muted" style="margin-right:4px">טיוטה</span></span>
+                    <span class="tl-matches">0 <small>מטופלים</small></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Screen 3: Patient roster -->
+        <section class="app-screen" id="scr-roster">
+          <div class="app-shell">
+            <div class="app-nav">
+              <div class="nav-links">
+                <span class="nav-link">לוח בקרה</span>
+                <span class="nav-link active">יחידה אונקולוגית</span>
+                <span class="nav-link">מחקרים קליניים</span>
+              </div>
+              <div class="nav-user"></div>
+            </div>
+            <div class="app-body">
+              <div class="toolbar reveal d1">
+                <div>
+                  <h2 class="card-title" style="margin:0">כל המטופלים — היחידה האונקולוגית</h2>
+                  <p class="muted">5 מטופלים עם תיק רפואי מלא · נבדקים מול <strong>MDX-2004-011</strong></p>
+                </div>
+                <span class="btn btn-primary" id="match-btn">התאם את כל המטופלים</span>
+              </div>
+              <div class="card reveal d2" style="padding:8px 6px">
+                <div class="rs-head">
+                  <span>מטופל</span><span>אבחנה</span><span>שלב</span><span>ביומרקרים</span>
+                </div>
+                <div class="roster">
+                  <div class="rs-row reveal d2"><div><div class="name">שרה כ.</div><div class="pid">PID 4829173</div></div><span class="c">NSCLC — Adenocarcinoma</span><span class="c">IV</span><span class="bm">EGFR+ · PD-L1 45%</span></div>
+                  <div class="rs-row reveal d3"><div><div class="name">מירי ש.</div><div class="pid">PID 7102934</div></div><span class="c">NSCLC</span><span class="c">IIIB</span><span class="bm">PD-L1 60%</span></div>
+                  <div class="rs-row reveal d4"><div><div class="name">רחל א.</div><div class="pid">PID 5581029</div></div><span class="c">NSCLC — Adenocarcinoma</span><span class="c">IV</span><span class="bm">ALK+</span></div>
+                  <div class="rs-row reveal d5"><div><div class="name">דוד מ.</div><div class="pid">PID 3910245</div></div><span class="c">NSCLC — Squamous</span><span class="c">IIIA</span><span class="bm">PD-L1 5%</span></div>
+                  <div class="rs-row reveal d6"><div><div class="name">יוסף ב.</div><div class="pid">PID 6203847</div></div><span class="c">SCLC</span><span class="c">II</span><span class="bm">—</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Screen 4: Cohort matching (climax) -->
+        <section class="app-screen" id="scr-cohort">
+          <div class="app-shell">
+            <div class="app-nav">
+              <div class="nav-links">
+                <span class="nav-link">לוח בקרה</span>
+                <span class="nav-link">יחידה אונקולוגית</span>
+                <span class="nav-link active">מחקרים קליניים</span>
+              </div>
+              <div class="nav-user"></div>
+            </div>
+            <div class="app-body">
+              <div class="toolbar reveal d1">
+                <div>
+                  <h2 class="card-title" style="margin:0">התאמת קוהורט — MDX-2004-011</h2>
+                  <p class="muted">ה-AI משווה 5 מטופלים מול קריטריוני המחקר</p>
+                </div>
+                <div class="cohort-engine">
+                  <svg class="lab-icon" viewBox="0 0 24 24"><use href="#oncomatch-lab-icon"></use></svg>
+                  <div><strong>OncoMatch</strong><span>מנוע התאמה מבוסס AI</span></div>
+                </div>
+              </div>
+              <div class="cohort-wrap reveal d2">
+                <div class="scan" id="scan"></div>
+                <div class="cohort-list">
+                  <div class="cohort-row ok" id="cr1" style="--w:93%">
+                    <div class="who"><div class="name">שרה כ.</div><div class="pid">PID 4829173</div><div class="prof">NSCLC Adeno · שלב IV · EGFR+ · PD-L1 45%</div></div>
+                    <div class="match-track"><div class="match-fill"></div></div>
+                    <div class="pct">93%</div>
+                    <span class="verdict badge badge-ok">מתאים</span>
+                  </div>
+                  <div class="cohort-row ok" id="cr2" style="--w:78%">
+                    <div class="who"><div class="name">מירי ש.</div><div class="pid">PID 7102934</div><div class="prof">NSCLC · שלב IIIB · PD-L1 60%</div></div>
+                    <div class="match-track"><div class="match-fill"></div></div>
+                    <div class="pct">78%</div>
+                    <span class="verdict badge badge-ok">מתאים</span>
+                  </div>
+                  <div class="cohort-row ok" id="cr3" style="--w:71%">
+                    <div class="who"><div class="name">רחל א.</div><div class="pid">PID 5581029</div><div class="prof">NSCLC Adeno · שלב IV · ALK+</div></div>
+                    <div class="match-track"><div class="match-fill"></div></div>
+                    <div class="pct">71%</div>
+                    <span class="verdict badge badge-ok">מתאים</span>
+                  </div>
+                  <div class="cohort-row warn" id="cr4" style="--w:44%">
+                    <div class="who"><div class="name">דוד מ.</div><div class="pid">PID 3910245</div><div class="prof">NSCLC Squamous · שלב IIIA · PD-L1 5%</div></div>
+                    <div class="match-track"><div class="match-fill"></div></div>
+                    <div class="pct">44%</div>
+                    <span class="verdict badge badge-warn">לא ברור</span>
+                  </div>
+                  <div class="cohort-row no" id="cr5" style="--w:21%">
+                    <div class="who"><div class="name">יוסף ב.</div><div class="pid">PID 6203847</div><div class="prof">SCLC · שלב II</div></div>
+                    <div class="match-track"><div class="match-fill"></div></div>
+                    <div class="pct">21%</div>
+                    <span class="verdict badge badge-muted">לא מתאים</span>
+                  </div>
+                </div>
+              </div>
+              <div class="cohort-summary">
+                <span class="cohort-result" id="cohort-result">✓ 3 מטופלים מתאימים מתוך 5</span>
+                <span class="cohort-top" id="cohort-top">התאמה מובילה: <strong id="counter">0%</strong></span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+
+    <!-- ======== Intro overlay ======== -->
+    <section class="overlay intro active" id="intro">
+      <div class="overlay-inner">
+        <div class="hero-logo"><svg class="lab-icon" viewBox="0 0 24 24"><use href="#oncomatch-lab-icon"></use></svg></div>
+        <h1 class="big-title" id="intro-title" data-text="מצא את כל המטופלים המתאימים למחקר — בשניות"></h1>
+        <p class="sub">AI שמשווה כל תיק רפואי מול קריטריוני המחקר</p>
+      </div>
+    </section>
+
+    <!-- ======== Outro overlay ======== -->
+    <section class="overlay outro" id="outro">
+      <div class="overlay-inner">
+        <div class="hero-logo"><svg class="lab-icon" viewBox="0 0 24 24"><use href="#oncomatch-lab-icon"></use></svg></div>
+        <h1 class="outro-title">OncoMatch</h1>
+        <p class="outro-tagline">ממחקר אחד — לקוהורט מטופלים מתאימה</p>
+        <span class="outro-chip">העלה מחקר · נתח קוהורט · גייס מהר יותר</span>
+      </div>
+    </section>
+
+    <!-- ======== Caption + cursor + chrome ======== -->
+    <div class="caption"><div class="caption-pill" id="caption-pill"></div></div>
+
+    <div id="cursor">
+      <div class="cy">
+        <svg class="cur-svg" width="30" height="32" viewBox="0 0 24 26">
+          <path d="M 4 1.5 L 4 20.5 L 8.8 16.2 L 11.9 23.6 L 15.2 22.2 L 12.1 14.9 L 18.6 14.4 Z"
+                fill="#fff" stroke="#0f1830" stroke-width="1.4" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </div>
+
+    <p class="disclaimer">⚠️ תוצאות ה-AI הן המלצתיות בלבד. כל החלטה קלינית חייבת להיבדק ולאשר על ידי הרופא המטפל.</p>
+    <div class="film-progress" id="film-progress"></div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const stage = $('stage'), camera = $('camera'), appFrame = $('app-frame');
+    const intro = $('intro'), outro = $('outro');
+    const scrUpload = $('scr-upload'), scrTrials = $('scr-trials'), scrRoster = $('scr-roster'), scrCohort = $('scr-cohort');
+    const uploadBtn = $('upload-btn'), fileChip = $('file-chip'), extract = $('extract');
+    const trialRow = $('trial-row'), matchBtn = $('match-btn');
+    const scan = $('scan');
+    const cohortRows = ['cr1', 'cr2', 'cr3', 'cr4', 'cr5'].map($);
+    const cohortResult = $('cohort-result'), cohortTop = $('cohort-top'), counterEl = $('counter');
+    const capPill = $('caption-pill'), prog = $('film-progress');
+    const cursorEl = $('cursor'), cursorY = cursorEl.querySelector('.cy');
+
+    /* ---------- undo registry: every timeline mutation is reversible for clean looping ---------- */
+    const undoStack = [];
+    const ripples = [];
+    function addCls(el, c) { el.classList.add(c); undoStack.push(() => el.classList.remove(c)); }
+    function rmCls(el, c) { el.classList.remove(c); undoStack.push(() => el.classList.add(c)); }
+    function setSty(el, p, v) { const old = el.style[p]; el.style[p] = v; undoStack.push(() => { el.style[p] = old; }); }
+
+    /* ---------- virtual camera ---------- */
+    const cam = { x: 0, y: 0, s: 1 };
+    function cameraSet(tx, ty, s, dur, ease) {
+      setSty(camera, 'transition', 'transform ' + dur + 'ms ' + (ease || 'cubic-bezier(.22,1.05,.35,1)'));
+      setSty(camera, 'transform', 'translate(' + tx + 'px,' + ty + 'px) scale(' + s + ')');
+      cam.x = tx; cam.y = ty; cam.s = s;
+    }
+    function cameraFocusEl(el, s, dur, ease) {
+      const r = el.getBoundingClientRect();
+      const cx = (r.left + r.width / 2 - 960 - cam.x) / cam.s + 960;
+      const cy = (r.top + r.height / 2 - 540 - cam.y) / cam.s + 540;
+      cameraSet(-(cx - 960) * s, -(cy - 540) * s, s, dur, ease);
+    }
+
+    /* ---------- animated cursor (two nested axes => curved bezier path) ---------- */
+    let curX = 1430, curY = 930;
+    function cursorMoveTo(x, y, dur) {
+      setSty(cursorEl, 'transitionDuration', dur + 'ms, 400ms');
+      setSty(cursorY, 'transitionDuration', dur + 'ms');
+      setSty(cursorEl, 'transform', 'translateX(' + x + 'px)');
+      setSty(cursorY, 'transform', 'translateY(' + y + 'px)');
+      curX = x; curY = y;
+    }
+    function cursorJump(x, y) {
+      cursorEl.style.transitionDuration = '0ms, 400ms';
+      cursorY.style.transitionDuration = '0ms';
+      cursorMoveTo(x, y, 0);
+      void cursorEl.offsetWidth;
+    }
+    function cursorToEl(el, dur, ox, oy) {
+      const r = el.getBoundingClientRect();
+      cursorMoveTo(r.left + r.width / 2 + (ox || 0), r.top + r.height / 2 + (oy || 0), dur);
+    }
+    function cursorShow() { addCls(cursorEl, 'visible'); }
+    function cursorHide() { rmCls(cursorEl, 'visible'); }
+    function click(targetEl) {
+      cursorEl.classList.add('down');
+      setTimeout(() => cursorEl.classList.remove('down'), 170);
+      const rip = document.createElement('div');
+      rip.className = 'ripple';
+      rip.style.left = curX + 'px';
+      rip.style.top = curY + 'px';
+      stage.appendChild(rip);
+      ripples.push(rip);
+      setTimeout(() => rip.remove(), 750);
+      if (targetEl) {
+        targetEl.classList.add('pressed');
+        setTimeout(() => targetEl.classList.remove('pressed'), 220);
+      }
+    }
+
+    /* ---------- kinetic caption (lower third) ---------- */
+    function caption(text) {
+      capPill.classList.remove('show', 'out');
+      capPill.style.animation = 'none';
+      void capPill.offsetWidth;
+      capPill.style.animation = '';
+      capPill.innerHTML = '';
+      text.split(/\s+/).forEach((w, i) => {
+        const s = document.createElement('span');
+        s.className = 'cw';
+        s.textContent = w;
+        s.style.animationDelay = (120 + i * 70) + 'ms';
+        capPill.appendChild(s);
+        capPill.appendChild(document.createTextNode(' '));
+      });
+      capPill.classList.add('show');
+    }
+
+    /* ---------- intro kinetic title ---------- */
+    function splitWords(el) {
+      const text = el.dataset.text || el.textContent.trim();
+      el.textContent = '';
+      text.split(/\s+/).forEach((word, i) => {
+        const span = document.createElement('span');
+        span.className = 'word';
+        span.textContent = word;
+        span.style.animationDelay = (i * 75 + 150) + 'ms';
+        el.appendChild(span);
+        el.appendChild(document.createTextNode(' '));
+      });
+    }
+
+    /* ---------- confidence counter (spring easing) ---------- */
+    let counterRaf = null;
+    function springEase(t) {
+      const c4 = (2 * Math.PI) / 3;
+      return t === 0 ? 0 : t === 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
+    }
+    function runCounter(el, target, duration) {
+      if (counterRaf) cancelAnimationFrame(counterRaf);
+      const start = performance.now();
+      function tick(now) {
+        const p = Math.min((now - start) / duration, 1);
+        el.textContent = Math.round(springEase(p) * target) + '%';
+        if (p < 1) counterRaf = requestAnimationFrame(tick);
+        else { el.textContent = target + '%'; counterRaf = null; }
+      }
+      el.textContent = '0%';
+      counterRaf = requestAnimationFrame(tick);
+    }
+
+    /* ---------- restart CSS animations of a static subtree (intro) ---------- */
+    function replayTree(root) {
+      const els = [root, ...root.querySelectorAll('*')];
+      els.forEach(el => { el.style.animation = 'none'; });
+      void root.offsetWidth;
+      els.forEach(el => { el.style.animation = ''; });
+    }
+
+    /* ================== MASTER TIMELINE (~20.8s loop) ================== */
+    const STEPS = [
+      /* Scene 1 — intro (CSS-driven from .active) */
+      { t: 2200, run() { addCls(intro, 'leaving'); } },
+
+      /* Scene 2 — upload / create a clinical trial */
+      { t: 2400, run() { addCls(appFrame, 'on'); addCls(scrUpload, 'active'); } },
+      { t: 2900, run() { caption('מעלים פרוטוקול מחקר — וה-AI מחלץ קריטריונים'); } },
+      { t: 3300, run() { cursorJump(620, 960); cursorShow(); cursorToEl(uploadBtn, 700, 8, 6); } },
+      { t: 4100, run() { click(uploadBtn); } },
+      { t: 4250, run() { addCls(fileChip, 'show'); } },
+      { t: 4750, run() { addCls(extract, 'run'); } },
+      { t: 5000, run() { cursorHide(); } },
+      { t: 5800, run() { addCls(extract, 'done'); } },
+
+      /* Scene 3 — trials library: cursor picks a trial */
+      { t: 6300, run() {
+          caption('כל המחקרים הקליניים — במקום אחד');
+          rmCls(scrUpload, 'active');
+          cameraSet(0, 0, 1.12, 0, 'linear');
+          void camera.offsetWidth;
+          cameraSet(0, 0, 1, 1000, 'cubic-bezier(.22,1.05,.35,1)');
+          addCls(scrTrials, 'active');
+      } },
+      { t: 6900, run() { cursorJump(1500, 460); cursorShow(); cursorToEl(trialRow, 800, 60, 0); } },
+      { t: 7800, run() { addCls(trialRow, 'hovering'); } },
+      { t: 8200, run() { click(trialRow); addCls(trialRow, 'selected'); } },
+      { t: 8500, run() { cameraFocusEl(trialRow, 1.35, 900, 'cubic-bezier(.3,.6,.2,1)'); } },
+      { t: 9200, run() { cursorHide(); } },
+
+      /* Scene 4 — patient roster: all patients with their records */
+      { t: 9500, run() {
+          caption('כל המטופלים שלך — עם התיק הרפואי המלא');
+          rmCls(scrTrials, 'active');
+          cameraSet(0, 0, 1.1, 0, 'linear');
+          void camera.offsetWidth;
+          cameraSet(0, 0, 1, 900, 'cubic-bezier(.22,1.05,.35,1)');
+          addCls(scrRoster, 'active');
+      } },
+      { t: 11300, run() { cursorJump(640, 200); cursorShow(); cursorToEl(matchBtn, 800, 8, 6); } },
+      { t: 12100, run() { click(matchBtn); } },
+      { t: 12300, run() { cursorHide(); } },
+
+      /* Scene 5 — cohort matching: scan beam + ranked compatibility */
+      { t: 12600, run() {
+          caption('ה-AI משווה את כל התיקים מול קריטריוני המחקר');
+          rmCls(scrRoster, 'active');
+          addCls(scrCohort, 'active');
+      } },
+      { t: 13200, run() { addCls(scan, 'run'); } },
+      { t: 13600, run() { addCls(cohortRows[0], 'lit'); } },
+      { t: 14000, run() { addCls(cohortRows[1], 'lit'); } },
+      { t: 14400, run() { addCls(cohortRows[2], 'lit'); } },
+      { t: 14800, run() { addCls(cohortRows[3], 'lit'); } },
+      { t: 15200, run() { addCls(cohortRows[4], 'lit'); } },
+
+      /* Scene 6 — result + outro */
+      { t: 16000, run() {
+          caption('ממחקר אחד — לקוהורט מטופלים מתאימה');
+          addCls(cohortResult, 'show');
+          addCls(cohortTop, 'show');
+          runCounter(counterEl, 93, 1200);
+      } },
+      { t: 18600, run() { addCls(outro, 'show'); addCls(camera, 'dim'); addCls(capPill, 'out'); } },
+    ];
+    const T_TOTAL = 20800;
+
+    let elapsed = 0, lastTs = null, stepIdx = 0, paused = false;
+
+    function restart() {
+      for (let i = undoStack.length - 1; i >= 0; i--) undoStack[i]();
+      undoStack.length = 0;
+      ripples.forEach(r => r.remove());
+      ripples.length = 0;
+      if (counterRaf) { cancelAnimationFrame(counterRaf); counterRaf = null; }
+      counterEl.textContent = '0%';
+      capPill.classList.remove('show', 'out');
+      capPill.innerHTML = '';
+      camera.style.transition = 'none';
+      camera.style.transform = '';
+      cam.x = 0; cam.y = 0; cam.s = 1;
+      cursorEl.style.transitionDuration = '0ms, 400ms';
+      cursorY.style.transitionDuration = '0ms';
+      cursorEl.style.transform = 'translateX(1430px)';
+      cursorY.style.transform = 'translateY(930px)';
+      curX = 1430; curY = 930;
+      replayTree(intro);
+      void document.body.offsetWidth;
+      camera.style.transition = '';
+      elapsed = 0;
+      stepIdx = 0;
+    }
+
+    function frame(ts) {
+      if (lastTs === null) lastTs = ts;
+      if (!paused) elapsed += ts - lastTs;
+      lastTs = ts;
+      while (stepIdx < STEPS.length && STEPS[stepIdx].t <= elapsed) STEPS[stepIdx++].run();
+      prog.style.width = (Math.min(elapsed / T_TOTAL, 1) * 100) + '%';
+      if (elapsed >= T_TOTAL) restart();
+      requestAnimationFrame(frame);
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        paused = !paused;
+        document.body.classList.toggle('paused', paused);
+      } else if (e.key === 'r' || e.key === 'R') {
+        restart();
+      } else if (e.key === 'p' || e.key === 'P') {
+        document.body.classList.toggle('present');
+      }
+    });
+
+    splitWords($('intro-title'));
+    if (new URLSearchParams(location.search).has('present')) document.body.classList.add('present');
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>

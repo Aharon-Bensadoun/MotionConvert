@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1920, initial-scale=1.0" />
+  <title>OncoMatch – Hebrew Clean MP4</title>
+  <style>
+    :root {
+      --bg1:#07111f;
+      --bg2:#0d2f66;
+      --bg3:#123a7d;
+      --card:rgba(255,255,255,.08);
+      --line:rgba(255,255,255,.14);
+      --text:#f7fbff;
+      --muted:#cfdbf0;
+      --muted2:#9fb2cc;
+      --blue:#2f67f6;
+      --blue2:#7aa7ff;
+      --cyan:#70d8ff;
+      --green:#3ad49a;
+      --green-bg:rgba(58,212,154,.16);
+      --shadow:0 28px 80px rgba(0,0,0,.42);
+      --soft:0 12px 28px rgba(0,0,0,.18);
+      --font:"Segoe UI", Inter, Arial, sans-serif;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#000;font-family:var(--font);color:var(--text)}
+    body{position:relative}
+    .stage{
+      position:absolute;inset:0;overflow:hidden;
+      background:
+        radial-gradient(circle at 12% 18%, rgba(122,167,255,.18), transparent 20%),
+        radial-gradient(circle at 86% 14%, rgba(47,103,246,.20), transparent 22%),
+        radial-gradient(circle at 52% 100%, rgba(112,216,255,.08), transparent 30%),
+        linear-gradient(135deg, var(--bg1), var(--bg2) 58%, var(--bg3));
+      isolation:isolate;
+    }
+    .stage::before,.stage::after,.orb{content:"";position:absolute;border-radius:999px;background:rgba(255,255,255,.04);pointer-events:none}
+    .stage::before{width:650px;height:650px;right:-200px;top:-170px;animation:floatA 18s ease-in-out infinite}
+    .stage::after{width:320px;height:320px;left:150px;top:350px;animation:floatB 16s ease-in-out infinite}
+    .orb{width:430px;height:430px;left:-120px;bottom:-180px;animation:floatC 22s ease-in-out infinite}
+    .grid-overlay{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);background-size:48px 48px;mask-image:linear-gradient(to bottom, rgba(0,0,0,.20), rgba(0,0,0,.95));opacity:.45;pointer-events:none}
+
+    .topbar{position:absolute;top:34px;left:58px;right:58px;display:flex;align-items:center;justify-content:flex-end;z-index:40}
+    .brand{display:flex;align-items:center;gap:14px;font-weight:900;letter-spacing:-.04em}
+    .logo{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;background:linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,.08));border:1px solid var(--line);box-shadow:inset 0 1px 0 rgba(255,255,255,.14), var(--soft);font-size:24px}
+    .brand-name{font-size:32px}
+
+    .scene{
+      position:absolute;inset:0;padding:110px 72px 70px;
+      display:grid;grid-template-columns:1.02fr .98fr;gap:40px;align-items:center;
+      opacity:0;pointer-events:none;transform:translateY(34px) scale(1.015);
+      transition:opacity .9s ease, transform .9s cubic-bezier(.2,.75,.2,1);
+    }
+    .scene.active{opacity:1;pointer-events:auto;transform:translateY(0) scale(1)}
+    .copy,.visual{min-width:0}
+    .visual{display:flex;flex-direction:column;align-items:stretch;justify-content:center;gap:18px;min-height:700px}
+
+    .eyebrow{display:inline-flex;align-items:center;gap:10px;width:max-content;padding:12px 16px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(10px);color:#ddecff;font-size:15px;font-weight:700;margin-bottom:18px}
+    .eyebrow i{width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 14px rgba(112,216,255,.75)}
+    h1,h2,h3,h4,p{margin:0}
+    .title{font-size:76px;line-height:1.02;letter-spacing:-.055em;font-weight:950;max-width:780px}
+    .title.small{font-size:60px}
+    .desc{margin-top:18px;max-width:760px;color:var(--muted);font-size:24px;line-height:1.58}
+    .bullets{margin-top:28px;display:grid;gap:14px;max-width:780px}
+    .bullet{display:grid;grid-template-columns:1fr 38px;gap:16px;align-items:start;padding:18px 20px;border-radius:22px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);box-shadow:var(--soft);backdrop-filter:blur(10px)}
+    .bullet .ico{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:rgba(47,103,246,.18);font-size:18px}
+    .bullet strong{display:block;font-size:20px;margin-bottom:5px}.bullet span{font-size:16px;color:#d5dff0;line-height:1.45}
+
+    .reveal,.panel,.chip,.stage-card,.logic-tile,.mock-card,.list-item{opacity:0;transform:translateY(24px) scale(.985);transition:opacity .85s cubic-bezier(.2,.75,.2,1), transform .85s cubic-bezier(.2,.75,.2,1)}
+    .scene.active .reveal,.scene.active .panel,.scene.active .chip,.scene.active .stage-card,.scene.active .logic-tile,.scene.active .mock-card,.scene.active .list-item{opacity:1;transform:translateY(0) scale(1)}
+    .scene.active .d1{transition-delay:.08s}.scene.active .d2{transition-delay:.20s}.scene.active .d3{transition-delay:.32s}.scene.active .d4{transition-delay:.44s}.scene.active .d5{transition-delay:.56s}.scene.active .d6{transition-delay:.68s}.scene.active .d7{transition-delay:.80s}
+
+    .panel,.stage-card,.mock-card,.logic-board,.mock-window,.dashboard,.portfolio{background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);backdrop-filter:blur(14px)}
+    .panel{padding:18px 20px;border-radius:24px}
+    .panel h3{font-size:23px;margin-bottom:8px}.panel p{font-size:15px;line-height:1.45;color:#d2dced}
+    .topline{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+    .num{width:40px;height:40px;border-radius:14px;display:grid;place-items:center;font-weight:900;background:rgba(47,103,246,.18);border:1px solid rgba(255,255,255,.10);font-size:14px}
+    .pill{display:inline-flex;align-items:center;gap:8px;padding:8px 13px;border-radius:999px;background:rgba(58,212,154,.16);border:1px solid rgba(58,212,154,.34);color:#97f3c8;font-weight:800;font-size:14px;width:max-content}
+    .score{font-size:46px;font-weight:950;letter-spacing:-.05em;margin:6px 0}.sub{font-size:14px;color:var(--muted2)}
+
+    /* Scene 1 */
+    .flow-hero{width:100%;max-width:940px;display:grid;grid-template-columns:1fr 210px 1fr;align-items:center;gap:26px}
+    .stack{display:grid;gap:16px}
+    .stage-card{padding:22px;border-radius:26px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);box-shadow:var(--soft)}
+    .label{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:#bfd3ed;font-weight:800;margin-bottom:12px;direction:ltr}
+    .stage-card h4{font-size:25px;margin-bottom:14px}
+    .lines{display:grid;gap:9px}.line{height:11px;border-radius:999px;background:rgba(255,255,255,.10);overflow:hidden;position:relative}.line::after{content:"";position:absolute;inset:0 auto 0 0;width:var(--w,60%);background:linear-gradient(90deg, rgba(121,166,255,.84), rgba(255,255,255,.45));border-radius:inherit;transform:scaleX(0);transform-origin:left center;transition:transform 1s ease .5s}.scene.active .line::after{transform:scaleX(1)}
+    .chips{display:flex;flex-wrap:wrap;gap:9px}.chip{padding:9px 12px;border-radius:999px;background:rgba(47,103,246,.16);border:1px solid rgba(255,255,255,.10);color:#ddecff;font-size:13px;font-weight:700;box-shadow:var(--soft)}
+    .engine{height:210px;border-radius:36px;display:grid;place-items:center;text-align:center;padding:20px;background:linear-gradient(165deg, rgba(47,103,246,.34), rgba(255,255,255,.08));border:1px solid rgba(255,255,255,.16);box-shadow:var(--shadow);overflow:hidden;position:relative}
+    .engine::before{content:"";position:absolute;inset:-30%;background:conic-gradient(from 180deg, transparent, rgba(255,255,255,.12), transparent 35%);opacity:.35;animation:spin 5s linear infinite}.engine > div{position:relative;z-index:1}.engine .icon{font-size:40px;margin-bottom:8px;animation:pulse 2.4s ease-in-out infinite}.engine .t{font-size:32px;font-weight:900;letter-spacing:-.04em}.engine .s{margin-top:6px;font-size:15px;color:#d6e2f3;line-height:1.35}
+    .result-box{margin-top:16px;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px;border-radius:22px;background:rgba(9,18,35,.52);border:1px solid rgba(255,255,255,.11)}.result-box .big{font-size:40px;font-weight:950;letter-spacing:-.05em}
+
+    /* Scene 2 */
+    .mock-window{width:920px;height:560px;padding:18px;border-radius:30px;overflow:hidden}
+    .login-ui{height:100%;display:grid;grid-template-columns:1fr 1fr;border-radius:22px;overflow:hidden;background:rgba(255,255,255,.03)}
+    .login-left{background:#f0f2f6;color:#0f1830;padding:70px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}.login-left h4{font-size:42px;margin-bottom:12px}.login-left p{color:#69758a;font-size:18px;margin-bottom:30px}.input{width:100%;max-width:420px;margin-bottom:16px;text-align:right}.input label{display:block;font-size:15px;color:#566176;font-weight:700;margin-bottom:8px}.field{width:100%;height:56px;border-radius:14px;background:#fff;border:1px solid #dde3ee;box-shadow:inset 0 1px 1px rgba(0,0,0,.04);padding:0 18px;display:flex;align-items:center;color:#a0a9b8;font-size:16px}.login-btn{margin-top:8px;width:100%;max-width:420px;height:56px;border-radius:14px;background:linear-gradient(135deg,var(--blue),var(--blue2));color:white;display:grid;place-items:center;font-weight:800;box-shadow:0 12px 24px rgba(47,103,246,.22);background-size:200% 100%;animation:shimmer 3s linear infinite}
+    .login-right{background:radial-gradient(circle at 30% 30%, rgba(255,255,255,.09), transparent 16%), radial-gradient(circle at 70% 18%, rgba(255,255,255,.06), transparent 18%), radial-gradient(circle at 42% 72%, rgba(255,255,255,.05), transparent 24%), linear-gradient(160deg, #214fca, #1f46b3);display:grid;place-items:center;position:relative}.hero-lock{text-align:center;padding:30px}.hero-lock .lab{width:78px;height:78px;border-radius:22px;display:grid;place-items:center;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.16);font-size:40px;margin:0 auto 18px;box-shadow:var(--soft);animation:bob 3.2s ease-in-out infinite}.hero-lock .name{font-size:54px;font-weight:900;letter-spacing:-.04em}.hero-lock .subname{margin-top:12px;color:#dbe8ff;font-size:24px}
+
+    /* Scene 3 */
+    .dashboard{width:950px;height:600px;border-radius:30px;padding:16px;overflow:hidden}.dashboard-inner{height:100%;border-radius:20px;background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.02));display:grid;grid-template-columns:1.65fr .9fr;gap:16px;padding:14px}.dash-main,.dash-side{display:grid;gap:14px}.mock-card{padding:16px;border-radius:20px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10)}
+    .toolbar{display:flex;gap:10px;align-items:center;justify-content:space-between}.toolbar .controls{display:flex;gap:10px;flex-wrap:wrap}.btn-lite{height:40px;padding:0 14px;border-radius:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.10);display:grid;place-items:center;font-size:14px;color:var(--text);white-space:nowrap}.btn-primary{background:linear-gradient(135deg,var(--blue),var(--blue2));border-color:transparent}.table{display:grid;gap:10px;margin-top:6px}.row{display:grid;grid-template-columns:1.1fr .65fr .55fr .35fr;gap:10px;align-items:center;padding:12px 14px;border-radius:16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07)}.badge{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border-radius:999px;font-size:13px;font-weight:800;width:max-content}.ok{background:rgba(58,212,154,.12);border:1px solid rgba(58,212,154,.34);color:#92f1c3}.warn{background:rgba(243,210,126,.12);border:1px solid rgba(243,210,126,.30);color:#ffe9b0}.count-card{display:grid;grid-template-columns:1fr 1fr;gap:12px}.mini-stat{padding:16px;border-radius:18px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10)}.mini-stat .n{font-size:34px;font-weight:950}.mini-stat .t{margin-top:6px;color:var(--muted2);font-size:14px}.calendar{display:grid;gap:10px}.cal-row{display:grid;grid-template-columns:28px 1fr 64px;gap:12px;align-items:center;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08)}.dot{width:10px;height:10px;border-radius:50%;background:#ff5f6d;box-shadow:0 0 10px rgba(255,95,109,.5)}.dot.green{background:var(--green);box-shadow:0 0 10px rgba(58,212,154,.5)}.dot.yellow{background:#f3d27e;box-shadow:0 0 10px rgba(243,210,126,.4)}
+
+    /* Scene 4 */
+    .logic-board{width:940px;padding:24px;border-radius:30px}.logic-top{display:grid;grid-template-columns:1fr 110px 1fr;gap:16px;align-items:stretch}.logic-col,.logic-mid,.logic-tile{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:22px}.logic-col{padding:18px}.logic-col h4{font-size:24px;margin-bottom:12px}.logic-mid{display:grid;place-items:center;text-align:center;background:linear-gradient(165deg, rgba(47,103,246,.30), rgba(255,255,255,.08));padding:16px;position:relative;overflow:hidden}.logic-mid::before{content:"";position:absolute;width:120%;height:120%;background:conic-gradient(from 180deg, transparent, rgba(255,255,255,.12), transparent 30%);animation:spin 5s linear infinite;opacity:.35}.logic-mid > div{position:relative;z-index:1}.logic-mid .spark{font-size:34px;margin-bottom:6px}.logic-mid strong{display:block;font-size:22px;margin-bottom:4px}.logic-bottom{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:16px}.logic-tile{padding:16px}.logic-tile .k{font-size:12px;color:var(--muted2);text-transform:uppercase;letter-spacing:.10em;direction:ltr}.logic-tile .v{margin-top:10px;font-size:34px;font-weight:950}.logic-tile .d{margin-top:6px;font-size:14px;line-height:1.45;color:var(--muted)}
+
+    /* Scene 5 */
+    .explain-board{width:930px;padding:18px;border-radius:30px;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);backdrop-filter:blur(14px)}
+    .explain-window{border-radius:22px;background:rgba(248,250,253,.95);color:#10182b;overflow:hidden}.window-head{height:76px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;border-bottom:1px solid #e4e9f1}.window-head h4{font-size:30px;max-width:720px;line-height:1.3}.close{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;color:#95a1b4;background:#f3f5f9;font-size:22px}.window-body{padding:24px 26px 28px}.explain-topline{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}.badge-ok{display:inline-flex;align-items:center;gap:8px;padding:9px 13px;border-radius:999px;background:#e9f9f1;border:1px solid #b6ebce;color:#1b8f5a;font-weight:900}.confidence{color:#7b8697;font-size:18px}.explain-text{font-size:18px;line-height:1.72;color:#293447;background:#fff;border:1px solid #e5ebf4;border-radius:20px;padding:18px 20px}
+
+    /* Scene 6 */
+    .portfolio{width:960px;height:620px;padding:16px;border-radius:30px}.portfolio-inner{height:100%;border-radius:22px;padding:16px;display:grid;grid-template-rows:auto auto 1fr;gap:14px;background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.02))}.top-actions{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}.search{height:44px;flex:1;min-width:280px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);display:flex;align-items:center;padding:0 16px;color:#99acc8}.filters{display:grid;grid-template-columns:repeat(5, 1fr);gap:10px}.filter{height:44px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);display:flex;align-items:center;justify-content:center;color:#dbe7fa;font-size:14px}.portfolio-list{display:grid;gap:10px;overflow:hidden}.list-item{display:grid;grid-template-columns:.8fr .6fr .55fr 1.2fr .3fr;gap:10px;align-items:center;padding:16px;border-radius:18px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09)}.trial-title{font-size:16px;line-height:1.35}.muted-small{font-size:13px;color:var(--muted2)}
+
+    @keyframes floatA{50%{transform:translate(-12px,16px)}}@keyframes floatB{50%{transform:translate(14px,-10px)}}@keyframes floatC{50%{transform:translate(-14px,12px)}}@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}@keyframes shimmer{0%{background-position:0% 0}100%{background-position:200% 0}}@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="orb"></div>
+    <div class="grid-overlay"></div>
+
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo">⚗️</div>
+        <div class="brand-name">OncoMatch</div>
+      </div>
+    </div>
+
+    <section class="scene active">
+      <div class="copy">
+        <div class="eyebrow reveal d1"><i></i> מצגת מוצר</div>
+        <h1 class="title reveal d2">התאמת מטופלים למחקרים קליניים — בצורה חכמה, ברורה ומהירה.</h1>
+        <p class="desc reveal d3">OncoMatch מחברת בין נתוני המטופל לבין קריטריוני המחקר, ומציגה תהליך התאמה מבוסס AI באופן ויזואלי, קריא ומוכן לסקירה קלינית.</p>
+        <div class="bullets">
+          <div class="bullet reveal d4"><div><strong>קליטת נתוני מטופל</strong><span>אבחנה, שלב מחלה, ביומרקרים, טיפולים קודמים והדמיה מרוכזים למבט אחד.</span></div><div class="ico">🧬</div></div>
+          <div class="bullet reveal d5"><div><strong>השוואה מול פרוטוקולים</strong><span>קריטריוני הכללה והחרגה נבדקים אוטומטית מול הפרופיל האונקולוגי.</span></div><div class="ico">🧪</div></div>
+          <div class="bullet reveal d6"><div><strong>תוצאה מוסברת</strong><span>לא רק ציון — אלא התאמה עם רמת ביטחון, נימוק וסקירה קלינית ברורה.</span></div><div class="ico">🧠</div></div>
+        </div>
+      </div>
+      <div class="visual">
+        <div class="flow-hero">
+          <div class="stack">
+            <div class="stage-card reveal d2"><div class="label">PATIENT DATA</div><h4>פרופיל מטופל אונקולוגי</h4><div class="lines"><div class="line" style="--w:84%"></div><div class="line" style="--w:58%"></div><div class="line" style="--w:91%"></div><div class="line" style="--w:66%"></div></div></div>
+            <div class="stage-card reveal d4"><div class="label">CLINICAL CONTEXT</div><div class="chips"><div class="chip d4">סוג גידול</div><div class="chip d4">שלב מחלה</div><div class="chip d5">ביומרקרים</div><div class="chip d5">הדמיה</div></div></div>
+          </div>
+          <div class="engine reveal d3"><div><div class="icon">⚡</div><div class="t">OncoMatch</div><div class="s">מנוע התאמה מבוסס AI</div></div></div>
+          <div class="stack">
+            <div class="stage-card reveal d3"><div class="label">TRIAL CRITERIA</div><h4>קריטריוני מחקרים קליניים</h4><div class="chips"><div class="chip d3">הכללה</div><div class="chip d4">החרגה</div><div class="chip d5">קו טיפול</div><div class="chip d6">פרופיל מולקולרי</div></div></div>
+            <div class="stage-card reveal d6"><div class="label">RESULT</div><div class="result-box"><div><div class="pill">התאמה פוטנציאלית</div><div style="margin-top:8px;font-weight:800;font-size:20px;">רשימת מחקרים ממוקדת</div><div class="sub" style="margin-top:4px;">לבחינה ואישור קליני</div></div><div class="big">76%</div></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="scene">
+      <div class="copy">
+        <div class="eyebrow reveal d1"><i></i> כניסה מאובטחת</div>
+        <h2 class="title small reveal d2">פתיחה נקייה, אמינה וברורה — כבר מהמסך הראשון.</h2>
+        <p class="desc reveal d3">במקום צילום מסך, בנינו הדמיה ויזואלית של מסך כניסה מודרני המדגיש אבטחה, פשטות והקשר קליני מקצועי.</p>
+        <div class="bullets">
+          <div class="bullet reveal d4"><div><strong>חוויית פתיחה מקצועית</strong><span>מסך מסודר ונעים שמסביר מיד מהי מטרת המערכת.</span></div><div class="ico">🔐</div></div>
+          <div class="bullet reveal d5"><div><strong>מותאם לעולם הרפואי</strong><span>שפה ויזואלית רפואית, מודרנית ומבוססת אמון.</span></div><div class="ico">🏥</div></div>
+        </div>
+      </div>
+      <div class="visual">
+        <div class="mock-window reveal d2">
+          <div class="login-ui">
+            <div class="login-right reveal d3"><div class="hero-lock"><div class="lab">⚗️</div><div class="name">OncoMatch</div><div class="subname">התאמת מטופלים למחקרים אונקולוגיים</div></div></div>
+            <div class="login-left reveal d3"><h4>התחברות</h4><p>גישה מאובטחת לפלטפורמת התאמה למחקרים קליניים</p><div class="input"><label>שם משתמש</label><div class="field">הקלד שם משתמש</div></div><div class="input"><label>סיסמה</label><div class="field">••••••••••••</div></div><div class="login-btn">התחבר</div></div>
+          </div>
+        </div>
+        <div class="panel reveal d6"><div class="topline"><div class="num">01</div><h3>מסך כניסה</h3></div><p>כניסה מאובטחת, שפה נקייה ותחושת מוצר פרימיום — בלי שימוש בצילומי מסך.</p></div>
+      </div>
+    </section>
+
+    <section class="scene">
+      <div class="copy">
+        <div class="eyebrow reveal d1"><i></i> תצוגת מטופלים</div>
+        <h2 class="title small reveal d2">לוח עבודה שמחבר בין מטופלים, תזמון ומצב התאמה.</h2>
+        <p class="desc reveal d3">המערכת מציגה סביבת עבודה ברורה: פילטרים, רשימות מטופלים, סטטוסי התאמה וסדר יום — כדי לאפשר תיעדוף מהיר ופעולה יעילה.</p>
+        <div class="bullets">
+          <div class="bullet reveal d4"><div><strong>מבט שבועי מרכזי</strong><span>זיהוי מהיר של מטופלים שיש לבחון השבוע.</span></div><div class="ico">📅</div></div>
+          <div class="bullet reveal d5"><div><strong>התאמות מול מטופל</strong><span>כל מטופל מחובר ישירות לרשימת המחקרים הרלוונטיים עבורו.</span></div><div class="ico">👤</div></div>
+        </div>
+      </div>
+      <div class="visual">
+        <div class="dashboard reveal d2">
+          <div class="dashboard-inner">
+            <div class="dash-main">
+              <div class="mock-card reveal d2 toolbar"><div class="controls"><div class="btn-lite btn-primary">נתח את כל המטופלים</div><div class="btn-lite">נתח מטופל נבחר</div><div class="btn-lite">ייצוא התאמות</div></div><div class="btn-lite">מצב הדגמה פעיל</div></div>
+              <div class="mock-card reveal d3"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><h3 style="font-size:22px;">התאמות למטופל</h3><div class="badge ok">14 מחקרים פעילים</div></div><div class="table"><div class="row list-item d3"><div class="trial-title">מחקר Phase 1/2 בגידולים מתקדמים</div><div class="badge ok">מתאים</div><div class="muted-small">47 מסמכים</div><div class="muted-small">סטטוס: מוכן לבדיקה</div></div><div class="row list-item d4"><div class="trial-title">מחקר חדשני למטופלים עם טיפול קודם</div><div class="badge warn">לא ברור</div><div class="muted-small">32 מסמכים</div><div class="muted-small">נדרש עיון קליני</div></div><div class="row list-item d5"><div class="trial-title">מחקר מונותרפיה לאחר קו טיפולי</div><div class="badge ok">מתאים</div><div class="muted-small">21 מסמכים</div><div class="muted-small">ניתן לתעדף</div></div><div class="row list-item d6"><div class="trial-title">מחקר בשלב מוקדם עם סמנים גנטיים</div><div class="badge warn">בהמתנה</div><div class="muted-small">18 מסמכים</div><div class="muted-small">חסר מידע</div></div></div></div>
+            </div>
+            <div class="dash-side">
+              <div class="mock-card reveal d4 count-card"><div class="mini-stat"><div class="n">27</div><div class="t">התאמות זמינות</div></div><div class="mini-stat"><div class="n">8</div><div class="t">דורשות סקירה</div></div></div>
+              <div class="mock-card reveal d5"><h3 style="font-size:20px;margin-bottom:12px;">יומן מטופלים</h3><div class="calendar"><div class="cal-row"><div class="dot green"></div><div>מטופל 1 — בדיקה הושלמה</div><div class="muted-small">09:20</div></div><div class="cal-row"><div class="dot"></div><div>מטופל 2 — סקירה ממתינה</div><div class="muted-small">11:00</div></div><div class="cal-row"><div class="dot yellow"></div><div>מטופל 3 — חסר מידע</div><div class="muted-small">12:15</div></div><div class="cal-row"><div class="dot green"></div><div>מטופל 4 — 2/27 התאמות</div><div class="muted-small">12:40</div></div><div class="cal-row"><div class="dot"></div><div>מטופל 5 — נדרש עדכון</div><div class="muted-small">13:30</div></div></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="panel reveal d6"><div class="topline"><div class="num">02</div><h3>לוח בקרה דינמי</h3></div><p>רכיבי UI ויזואליים מחליפים צילומי מסך וממחישים את היכולות בצורה ברורה יותר למצגת.</p></div>
+      </div>
+    </section>
+
+    <section class="scene">
+      <div class="copy">
+        <div class="eyebrow reveal d1"><i></i> לוגיקת התאמה</div>
+        <h2 class="title small reveal d2">ההתאמה עצמה מוצגת כתרשים ברור — לא כרשימה עמוסה.</h2>
+        <p class="desc reveal d3">כדי להקל על ההבנה, בנינו השוואה ויזואלית בין פרופיל המטופל לבין דרישות המחקר, עם תוצאה מוסברת ורמת ביטחון ברורה.</p>
+        <div class="bullets">
+          <div class="bullet reveal d4"><div><strong>השוואה חזותית</strong><span>הקשר בין נתוני מטופל לקריטריוני מחקר נראה מיידית לעין.</span></div><div class="ico">🔎</div></div>
+          <div class="bullet reveal d5"><div><strong>החלטה מהירה יותר</strong><span>פחות קריאה ידנית, יותר הבנה בזמן קצר — אידיאלי לוידאו מוצר.</span></div><div class="ico">⚖️</div></div>
+        </div>
+      </div>
+      <div class="visual">
+        <div class="logic-board reveal d2">
+          <div class="logic-top">
+            <div class="logic-col reveal d2"><h4>פרופיל מטופל</h4><div class="chips"><div class="chip d2">אבחנה</div><div class="chip d3">שלב מחלה</div><div class="chip d4">שינויים גנטיים</div><div class="chip d5">טיפול קודם</div><div class="chip d6">הדמיה אחרונה</div></div></div>
+            <div class="logic-mid reveal d3"><div><div class="spark">✨</div><strong>AI Match</strong><div class="sub">מנוע התאמה והסקה</div></div></div>
+            <div class="logic-col reveal d4"><h4>קריטריוני מחקר</h4><div class="chips"><div class="chip d3">הכללה</div><div class="chip d4">החרגה</div><div class="chip d5">גידולים מוצקים</div><div class="chip d6">קו טיפול</div><div class="chip d7">פרופיל מולקולרי</div></div></div>
+          </div>
+          <div class="logic-bottom"><div class="logic-tile d5"><div class="k">OUTPUT</div><div class="v">רשימת התאמות</div><div class="d">המחקרים המתאימים ביותר עולים לראש הרשימה לצורך תעדוף קליני.</div></div><div class="logic-tile d6"><div class="k">CONFIDENCE</div><div class="v">76%</div><div class="d">אינדיקציה ויזואלית ברורה לרמת הביטחון של ההתאמה.</div></div><div class="logic-tile d7"><div class="k">EXPLANATION</div><div class="v">נימוק מובנה</div><div class="d">התוצאה נשארת מוסברת, ניתנת לבדיקה ומוכנה לסקירה של הרופא.</div></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="scene">
+      <div class="copy">
+        <div class="eyebrow reveal d1"><i></i> הסבר מפורט</div>
+        <h2 class="title small reveal d2">תשובה מוסברת ומנומקת — לא רק “כן” או “לא”.</h2>
+        <p class="desc reveal d3">המערכת מסבירה את ההתאמה דרך רכיבי מפתח: אבחנה, שלב מחלה, מאפיינים גנטיים, טיפולים קודמים והדמיה עדכנית.</p>
+        <div class="bullets">
+          <div class="bullet reveal d4"><div><strong>נימוק קליני מובנה</strong><span>הרופא רואה בדיוק על אילו נתונים מבוססת ההמלצה.</span></div><div class="ico">📋</div></div>
+          <div class="bullet reveal d5"><div><strong>רמת ביטחון מוצגת</strong><span>התוצאה מוצגת באופן שמחזק אמון אך עדיין משאיר את ההחלטה בידי הקלינאי.</span></div><div class="ico">✅</div></div>
+        </div>
+      </div>
+      <div class="visual">
+        <div class="explain-board reveal d2"><div class="explain-window"><div class="window-head"><div class="close">×</div><h4>מחקר Phase 1/2 פתוח במטופלים עם גידולים מתקדמים</h4></div><div class="window-body"><div class="explain-topline"><div class="confidence">רמת ביטחון: 76%</div><div class="badge-ok">● מתאים</div></div><div class="explain-text">על בסיס הנתונים הקליניים שנקלטו, פרופיל המטופל תואם את סוג הגידול ואת שלב המחלה הנדרש במחקר. המערכת מזהה התאמה בין האבחנה, ההיסטולוגיה, מצב המחלה העדכני, הממצאים בהדמיה והקשר הטיפולי. בנוסף, לא נמצאה אינדיקציה ברורה להחרגה קשיחה מתוך הנתונים שסופקו. לכן המחקר מסומן כהתאמה פוטנציאלית, בכפוף לאימות רפואי מלא ולבדיקת הפרוטוקול על ידי הצוות המטפל.</div></div></div></div>
+        <div class="panel reveal d6"><div class="pill">התאמה</div><div class="score">76%</div><div class="sub">רמת ביטחון ברורה + נימוק קריא + מוכנות לסקירה קלינית</div></div>
+      </div>
+    </section>
+
+    <section class="scene">
+      <div class="copy">
+        <div class="eyebrow reveal d1"><i></i> ניהול מחקרים</div>
+        <h2 class="title small reveal d2">לא רק התאמה — אלא גם שליטה על כל פורטפוליו המחקרים.</h2>
+        <p class="desc reveal d3">OncoMatch מרכזת גם את ניהול המחקרים עצמם: סטטוס, בעלים, תאריכים, פילטרים והיקף התאמות — והכול בתצוגה אחת ברורה ומצגתית.</p>
+        <div class="bullets">
+          <div class="bullet reveal d4"><div><strong>מאגר מחקרים מרכזי</strong><span>תצוגה אחידה של מחקרים פעילים, קודים, סטטוסי גיוס והיסטוריה.</span></div><div class="ico">🧪</div></div>
+          <div class="bullet reveal d5"><div><strong>מבט ניהולי כולל</strong><span>קישור ישיר בין מחקרים, מטופלים וההתאמות שנמצאו.</span></div><div class="ico">📈</div></div>
+          <div class="bullet reveal d6"><div><strong>סיום חד וברור</strong><span>גרסה מוכנה להקלטה ל-MP4, בעברית, ללא צילומי מסך ועם מבנה נקי יותר.</span></div><div class="ico">🚀</div></div>
+        </div>
+      </div>
+      <div class="visual">
+        <div class="portfolio reveal d2"><div class="portfolio-inner"><div class="top-actions reveal d2"><div style="display:flex;gap:10px;flex-wrap:wrap;"><div class="btn-lite btn-primary">הוסף מחקר חדש</div><div class="btn-lite">ייצוא התאמות</div><div class="btn-lite">ייבוא מקובץ</div></div><div class="search">חיפוש לפי שם מחקר, קוד מחקר או בעלים...</div></div><div class="filters reveal d3"><div class="filter">סטטוס</div><div class="filter">תאריך הוספה</div><div class="filter">קוד מחקר</div><div class="filter">מספר התאמות</div><div class="filter">בעלים</div></div><div class="portfolio-list"><div class="list-item d3"><div class="badge ok">פעיל</div><div class="muted-small">35 התאמות</div><div class="muted-small">MDX 2004-011</div><div class="trial-title">מחקר רב-מרכזי פתוח בגידולים מתקדמים</div><div class="muted-small">21-04-2026</div></div><div class="list-item d4"><div class="badge warn">לא פעיל</div><div class="muted-small">0 התאמות</div><div class="muted-small">M25-632</div><div class="trial-title">מחקר מתקדם בממאירויות קשקשיות</div><div class="muted-small">21-04-2026</div></div><div class="list-item d5"><div class="badge ok">פעיל</div><div class="muted-small">5 התאמות</div><div class="muted-small">M25-760</div><div class="trial-title">מחקר בשלב 1 עם טיפול משולב</div><div class="muted-small">21-04-2026</div></div><div class="list-item d6"><div class="badge ok">פעיל</div><div class="muted-small">1 התאמה</div><div class="muted-small">TCD17620</div><div class="trial-title">מחקר בהסלמה והרחבת מינון</div><div class="muted-small">21-04-2026</div></div><div class="list-item d7"><div class="badge warn">טיוטה</div><div class="muted-small">—</div><div class="muted-small">M20-431</div><div class="trial-title">מחקר מיון ראשוני לפרופיל מולקולרי</div><div class="muted-small">21-04-2026</div></div></div></div></div>
+        <div class="panel reveal d7"><div class="topline"><div class="num">03</div><h3>סיכום</h3></div><p>מצגת עברית נקייה ומוכנה ל-MP4, עם ממשקים מאוירים, מעברים דינמיים וללא אלמנטים שמעמיסים על המסך.</p></div>
+      </div>
+    </section>
+  </div>
+  <script>
+    const scenes = [...document.querySelectorAll('.scene')];
+    let index = 0;
+    const duration = 5000;
+    function showScene(i){ scenes.forEach((scene, idx)=> scene.classList.toggle('active', idx===i)); }
+    showScene(index);
+    setInterval(()=>{ index = (index+1)%scenes.length; showScene(index); }, duration);
+  </script>
+</body>
+</html>

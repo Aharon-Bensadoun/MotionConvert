@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ASPECT_PRESETS, detectDurationFromHtml } from "@motionconvert/shared";
+import type { AspectPresetKey } from "@motionconvert/shared";
 import {
   EASINGS,
   MOTION_CATEGORIES,
@@ -14,11 +16,6 @@ import {
 } from "./motionCss";
 import { injectEditorRuntime } from "./editorRuntime";
 
-interface SlideInfo {
-  id: string;
-  label: string;
-}
-
 interface SelectedEl {
   mcId: string;
   label: string;
@@ -27,36 +24,98 @@ interface SelectedEl {
 
 interface MotionEditorProps {
   file: File;
+  preset: AspectPresetKey;
   onBack: () => void;
   onExportToConverter: (html: string, filename: string) => void;
 }
 
 const EASING_KEYS = Object.keys(EASINGS) as EasingKey[];
+const PRESET_KEYS = Object.keys(ASPECT_PRESETS) as AspectPresetKey[];
 
 let keySeq = 0;
 const nextKey = () => `a${++keySeq}_${Math.random().toString(36).slice(2, 6)}`;
 
-export default function MotionEditor({ file, onBack, onExportToConverter }: MotionEditorProps) {
+function fmtTime(ms: number): string {
+  const s = ms / 1000;
+  return `${s.toFixed(1)}s`;
+}
+
+export default function MotionEditor({ file, preset, onBack, onExportToConverter }: MotionEditorProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [rawHtml, setRawHtml] = useState<string | null>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [fileHtml, setFileHtml] = useState<string | null>(null);
+  // Bumping this reloads the iframe from scratch — used to rewind the timeline.
+  const [reloadNonce, setReloadNonce] = useState(0);
   const [ready, setReady] = useState(false);
-  const [slides, setSlides] = useState<SlideInfo[]>([]);
-  const [currentSlide, setCurrentSlide] = useState<string | null>(null);
+  const [sceneCount, setSceneCount] = useState(0);
   const [selected, setSelected] = useState<SelectedEl | null>(null);
   const [assignments, setAssignments] = useState<MotionAssignment[]>([]);
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [category, setCategory] = useState<MotionCategory | "All">("All");
   const [pickMode, setPickMode] = useState(true);
+  const [scale, setScale] = useState(0.3);
+  // Aspect ratio of the preview stage. Defaults to the converter's choice but
+  // can be switched here without leaving the editor.
+  const [viewPreset, setViewPreset] = useState<AspectPresetKey>(preset);
+
+  // ---- transport (timeline) state ----
+  const [timeMs, setTimeMs] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const draggingRef = useRef(false);
+  const pendingSeekRef = useRef<number | null>(null);
+  // The iframe's actual virtual-clock time, used to decide forward vs rewind
+  // (state `timeMs` is optimistic and updates while dragging).
+  const reportedTimeRef = useRef(0);
   const exportResolver = useRef<((html: string) => void) | null>(null);
 
-  // Load file contents and inject the editor runtime for the iframe.
+  const { width: stageW, height: stageH } = ASPECT_PRESETS[viewPreset];
+
+  // Total timeline length (seconds → ms), used to size the scrubber.
+  const durationMs = useMemo(() => {
+    if (fileHtml === null) return 20000;
+    const detected = detectDurationFromHtml(fileHtml);
+    return Math.max(1000, Math.round((detected ?? 20) * 1000));
+  }, [fileHtml]);
+
+  // A non-empty first frame to land on when (re)loading, so the editor never
+  // shows a blank pre-animation state.
+  const initialFrameMs = useMemo(() => Math.min(2000, durationMs), [durationMs]);
+
+  // Load raw file contents once.
   useEffect(() => {
-    file.text().then((html) => setRawHtml(injectEditorRuntime(html)));
+    file.text().then(setFileHtml);
   }, [file]);
+
+  // Build the iframe document. nonce changes force a reload (rewind).
+  const rawHtml = useMemo(
+    () => (fileHtml === null ? null : injectEditorRuntime(fileHtml, reloadNonce)),
+    [fileHtml, reloadNonce],
+  );
+
+  // Each new document means the runtime must re-announce itself.
+  useEffect(() => {
+    setReady(false);
+  }, [rawHtml]);
 
   const postToIframe = useCallback((msg: Record<string, unknown>) => {
     iframeRef.current?.contentWindow?.postMessage(msg, "*");
   }, []);
+
+  // Fit the fixed-resolution stage into the available preview area.
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const compute = () => {
+      const pad = 32;
+      const cw = el.clientWidth - pad;
+      const ch = el.clientHeight - pad;
+      if (cw > 0 && ch > 0) setScale(Math.min(cw / stageW, ch / stageH));
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [stageW, stageH]);
 
   // Listen to messages from the iframe runtime.
   useEffect(() => {
@@ -68,12 +127,17 @@ export default function MotionEditor({ file, onBack, onExportToConverter }: Moti
           setReady(true);
           break;
         case "mc:slides":
-          setSlides(d.slides);
-          setCurrentSlide((cur) => cur ?? (d.slides[0]?.id ?? null));
+          setSceneCount(d.slides.length);
           break;
         case "mc:selected":
           setSelected({ mcId: d.mcId, label: d.label, slideId: d.slideId });
-          if (d.slideId) setCurrentSlide(d.slideId);
+          break;
+        case "mc:time":
+          reportedTimeRef.current = d.ms;
+          if (!draggingRef.current) {
+            setTimeMs(d.ms);
+            setPlaying(d.playing);
+          }
           break;
         case "mc:serialized":
           exportResolver.current?.(d.html);
@@ -90,11 +154,70 @@ export default function MotionEditor({ file, onBack, onExportToConverter }: Moti
     if (ready) postToIframe({ type: "mc:set-mode", mode: pickMode ? "select" : "idle" });
   }, [ready, pickMode, postToIframe]);
 
+  // On (re)load: push current motion CSS and seek to the desired frame.
+  useEffect(() => {
+    if (!ready) return;
+    postToIframe({ type: "mc:apply", css: buildMotionCss(assignments) });
+    const target = pendingSeekRef.current ?? initialFrameMs;
+    pendingSeekRef.current = null;
+    postToIframe({ type: "mc:seek", ms: target });
+    reportedTimeRef.current = target;
+    setTimeMs(target);
+    setPlaying(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
+
   // Live-preview: rebuild CSS whenever assignments change and push to iframe.
   useEffect(() => {
     if (!ready) return;
     postToIframe({ type: "mc:apply", css: buildMotionCss(assignments) });
   }, [assignments, ready, postToIframe]);
+
+  // ---- transport controls ----
+  const play = useCallback(() => {
+    postToIframe({ type: "mc:play" });
+    setPlaying(true);
+  }, [postToIframe]);
+
+  const pause = useCallback(() => {
+    postToIframe({ type: "mc:pause" });
+    setPlaying(false);
+  }, [postToIframe]);
+
+  const seekTo = useCallback(
+    (ms: number) => {
+      const clamped = Math.max(0, Math.min(ms, durationMs));
+      setTimeMs(clamped);
+      setPlaying(false);
+      if (clamped >= reportedTimeRef.current) {
+        // Forward seek is cheap: the virtual clock fast-forwards in place.
+        postToIframe({ type: "mc:seek", ms: clamped });
+        reportedTimeRef.current = clamped;
+      } else {
+        // Rewind: reload the iframe and seek forward from zero.
+        pendingSeekRef.current = clamped;
+        setReloadNonce((n) => n + 1);
+      }
+    },
+    [durationMs, postToIframe],
+  );
+
+  const restart = useCallback(() => {
+    pendingSeekRef.current = initialFrameMs;
+    setReloadNonce((n) => n + 1);
+    setPlaying(false);
+  }, [initialFrameMs]);
+
+  const onScrubChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    draggingRef.current = true;
+    setTimeMs(Number(e.target.value));
+  }, []);
+
+  const commitScrub = useCallback(() => {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    seekTo(timeMs);
+  }, [seekTo, timeMs]);
 
   const activeAssignment = useMemo(
     () => assignments.find((a) => a.key === activeKey) ?? null,
@@ -160,14 +283,6 @@ export default function MotionEditor({ file, onBack, onExportToConverter }: Moti
     [postToIframe],
   );
 
-  const gotoSlide = useCallback(
-    (slideId: string) => {
-      setCurrentSlide(slideId);
-      postToIframe({ type: "mc:goto-slide", slideId });
-    },
-    [postToIframe],
-  );
-
   const replay = useCallback(() => postToIframe({ type: "mc:replay" }), [postToIframe]);
 
   // Ask the iframe for a clean serialization, then inject final motion CSS.
@@ -217,6 +332,21 @@ export default function MotionEditor({ file, onBack, onExportToConverter }: Moti
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-0.5 rounded-lg bg-[var(--color-surface)] p-0.5" title="Preview aspect ratio">
+            {PRESET_KEYS.map((key) => (
+              <button
+                key={key}
+                onClick={() => setViewPreset(key)}
+                className={`rounded-md px-2.5 py-1 text-xs font-medium ${
+                  viewPreset === key
+                    ? "bg-[var(--color-accent)] text-white"
+                    : "text-[var(--color-muted)] hover:text-white"
+                }`}
+              >
+                {key}
+              </button>
+            ))}
+          </div>
           <button
             onClick={() => setPickMode((p) => !p)}
             className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
@@ -232,7 +362,7 @@ export default function MotionEditor({ file, onBack, onExportToConverter }: Moti
             onClick={replay}
             className="rounded-lg bg-[var(--color-surface)] px-3 py-1.5 text-sm text-white hover:bg-[var(--color-border)]"
           >
-            ▶ Replay
+            ↻ Replay motions
           </button>
           <button
             onClick={handleDownload}
@@ -250,35 +380,16 @@ export default function MotionEditor({ file, onBack, onExportToConverter }: Moti
       </header>
 
       <div className="flex min-h-0 flex-1">
-        {/* Left: slides + applied motions */}
+        {/* Left: applied motions */}
         <aside className="flex w-64 flex-col border-r border-[var(--color-border)] bg-[var(--color-panel)]">
-          <div className="border-b border-[var(--color-border)] p-3">
-            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">
-              Slides ({slides.length})
-            </h2>
-            <div className="space-y-1">
-              {slides.map((s, i) => (
-                <button
-                  key={s.id}
-                  onClick={() => gotoSlide(s.id)}
-                  className={`block w-full truncate rounded-lg px-2.5 py-1.5 text-left text-sm ${
-                    currentSlide === s.id
-                      ? "bg-[var(--color-accent)]/20 text-white"
-                      : "text-[var(--color-muted)] hover:bg-[var(--color-surface)]"
-                  }`}
-                  title={s.label}
-                >
-                  <span className="mr-1.5 text-[var(--color-muted)]">{i + 1}.</span>
-                  {s.label || `Slide ${i + 1}`}
-                  {assignments.some((a) => a.slideId === s.id) && (
-                    <span className="ml-1 text-[var(--color-accent)]">●</span>
-                  )}
-                </button>
-              ))}
-              {slides.length === 0 && (
-                <p className="text-xs text-[var(--color-muted)]">No slides detected.</p>
-              )}
-            </div>
+          <div className="border-b border-[var(--color-border)] p-3 text-xs text-[var(--color-muted)]">
+            <p className="font-semibold uppercase tracking-wide">Timeline</p>
+            <p className="mt-1">
+              {sceneCount} scene(s) detected · {fmtTime(durationMs)} total
+            </p>
+            <p className="mt-1 leading-relaxed">
+              Use the player below the preview to pause on the moment you want to edit.
+            </p>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
@@ -325,7 +436,7 @@ export default function MotionEditor({ file, onBack, onExportToConverter }: Moti
           </div>
         </aside>
 
-        {/* Center: live preview */}
+        {/* Center: live preview + transport */}
         <main className="flex min-w-0 flex-1 flex-col bg-[#0a0c12]">
           <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2 text-xs text-[var(--color-muted)]">
             {selected ? (
@@ -336,23 +447,87 @@ export default function MotionEditor({ file, onBack, onExportToConverter }: Moti
                 <span className="truncate">{selected.label}</span>
               </>
             ) : (
-              <span>Hover and click any element in the preview to select it.</span>
+              <span>Pause the player, then hover and click any element to select it.</span>
             )}
           </div>
-          <div className="min-h-0 flex-1 overflow-auto p-4">
+
+          <div
+            ref={stageRef}
+            className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-4"
+          >
             {rawHtml ? (
-              <iframe
-                ref={iframeRef}
-                title="preview"
-                srcDoc={rawHtml}
-                className="mx-auto h-full w-full rounded-lg border border-[var(--color-border)] bg-white"
-                sandbox="allow-scripts allow-same-origin"
-              />
+              <div
+                className="relative shrink-0 overflow-hidden rounded-lg border border-[var(--color-border)] bg-white shadow-xl"
+                style={{ width: stageW * scale, height: stageH * scale }}
+              >
+                <iframe
+                  ref={iframeRef}
+                  title="preview"
+                  srcDoc={rawHtml}
+                  style={{
+                    width: stageW,
+                    height: stageH,
+                    transform: `scale(${scale})`,
+                    transformOrigin: "top left",
+                  }}
+                  className="absolute left-0 top-0 border-0 bg-white"
+                  sandbox="allow-scripts allow-same-origin"
+                />
+              </div>
             ) : (
               <div className="flex h-full items-center justify-center text-[var(--color-muted)]">
                 Loading…
               </div>
             )}
+            <div className="pointer-events-none absolute bottom-2 right-3 rounded bg-black/50 px-2 py-0.5 text-[10px] text-white/80">
+              {stageW}×{stageH} · {Math.round(scale * 100)}%
+            </div>
+          </div>
+
+          {/* Transport bar */}
+          <div className="flex items-center gap-3 border-t border-[var(--color-border)] bg-[var(--color-panel)] px-4 py-2.5">
+            <button
+              onClick={restart}
+              title="Restart from the beginning"
+              className="rounded-lg bg-[var(--color-surface)] px-2.5 py-1.5 text-sm text-white hover:bg-[var(--color-border)]"
+            >
+              ⏮
+            </button>
+            <button
+              onClick={() => seekTo(timeMs - 1000)}
+              title="Back 1s"
+              className="rounded-lg bg-[var(--color-surface)] px-2.5 py-1.5 text-sm text-white hover:bg-[var(--color-border)]"
+            >
+              ⏪
+            </button>
+            <button
+              onClick={playing ? pause : play}
+              className="rounded-lg bg-[var(--color-accent)] px-4 py-1.5 text-sm font-semibold text-white hover:bg-[var(--color-accent-hover)]"
+            >
+              {playing ? "⏸ Pause" : "▶ Play"}
+            </button>
+            <button
+              onClick={() => seekTo(timeMs + 1000)}
+              title="Forward 1s"
+              className="rounded-lg bg-[var(--color-surface)] px-2.5 py-1.5 text-sm text-white hover:bg-[var(--color-border)]"
+            >
+              ⏩
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={durationMs}
+              step={50}
+              value={Math.min(timeMs, durationMs)}
+              onChange={onScrubChange}
+              onPointerUp={commitScrub}
+              onMouseUp={commitScrub}
+              onTouchEnd={commitScrub}
+              className="flex-1 accent-[var(--color-accent)]"
+            />
+            <span className="w-24 text-right font-mono text-xs text-[var(--color-muted)]">
+              {fmtTime(timeMs)} / {fmtTime(durationMs)}
+            </span>
           </div>
         </main>
 

@@ -132,6 +132,7 @@ export default function App() {
     return (
       <MotionEditor
         file={file}
+        preset={preset}
         onBack={() => setView("convert")}
         onExportToConverter={handleEditedHtml}
       />
@@ -368,9 +369,6 @@ export default function App() {
           </section>
         )}
 
-        <footer className="mt-12 text-center text-xs text-[var(--color-muted)]">
-          API localhost:3001 · Worker uses Playwright + FFmpeg on your machine
-        </footer>
       </div>
     </div>
   );
