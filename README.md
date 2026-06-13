@@ -2,6 +2,11 @@
 
 Convert HTML motion design files to MP4 video — **100% local**, no cloud services.
 
+Includes a built-in **Motion Editor**: upload any HTML file (with or without
+existing motion design), click elements on each slide, and add or modify
+animations from a large library of motion design templates — then export the
+modified HTML or send it straight to the MP4 converter.
+
 ## Architecture
 
 ```
@@ -88,6 +93,32 @@ curl -X POST http://localhost:3001/api/jobs \
   -F "file=@html_Motion_examples/evamedical_motion_design_pub_adaptatif_v3.html" \
   -F 'settings={"preset":"16:9","fps":30,"durationSec":30,"format":"mp4"}'
 ```
+
+## Motion Editor
+
+Create or modify motion design on existing HTML without touching code.
+
+1. On the home screen, drop or pick an `.html` file, then click **✨ Edit motion
+   design**.
+2. The file renders live in a preview. **Slides** (sections/scenes) are detected
+   automatically and listed in the left rail — click one to jump to it.
+3. **Hover and click any element** in the preview to select it (the picker can be
+   toggled off to interact with the page normally).
+4. Pick a template from the **library** on the right (grouped by category:
+   Entrance, Exit, Emphasis, Attention, Text, Background, Camera). It is applied
+   to the selected element instantly.
+5. Fine-tune **duration, delay, easing, and repeat** per motion. An element can
+   carry several motions (e.g. an entrance plus a looping emphasis); they are
+   merged into a single deterministic CSS animation.
+6. Use **▶ Replay** to preview, **⬇ Export HTML** to download the modified file,
+   or **🎬 Convert to MP4** to send it straight into the conversion pipeline.
+
+Animations are emitted as plain CSS `@keyframes` + per-element rules (keyed by a
+stable `data-mc-id` attribute), so they capture frame-accurately under the
+converter's virtual-time clock. The editor runtime and preview-only markup are
+stripped from the exported file. The template catalog lives in
+`apps/web/src/editor/motionTemplates.ts` — add an entry there to extend the
+library.
 
 ## Conversion pipeline
 

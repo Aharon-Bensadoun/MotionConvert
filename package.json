@@ -5,7 +5,7 @@
     "predev": "pnpm --filter @motionconvert/shared build && pnpm --filter @motionconvert/db generate && pnpm --filter @motionconvert/db build && pnpm --filter @motionconvert/converter build",
     "dev": "concurrently -n api,worker,web -c blue,magenta,green \"pnpm --filter @motionconvert/api dev\" \"pnpm --filter @motionconvert/worker dev\" \"pnpm --filter @motionconvert/web dev\"",
     "build": "pnpm -r build",
-    "test": "pnpm --filter @motionconvert/shared test && pnpm --filter @motionconvert/converter test && pnpm --filter @motionconvert/api test",
+    "test": "pnpm --filter @motionconvert/shared test && pnpm --filter @motionconvert/converter test && pnpm --filter @motionconvert/api test && pnpm --filter @motionconvert/web test",
     "convert:test": "pnpm --filter @motionconvert/converter test:integration",
     "db:migrate": "pnpm --filter @motionconvert/db migrate",
     "db:generate": "pnpm --filter @motionconvert/db generate",
