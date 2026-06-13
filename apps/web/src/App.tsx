@@ -8,10 +8,12 @@ import {
 import type { AspectPresetKey } from "@motionconvert/shared";
 import { createJob, getDownloadUrl, getHealth } from "./api";
 import { useJobPolling } from "./useJobPolling";
+import MotionEditor from "./editor/MotionEditor";
 
 const PRESET_KEYS = Object.keys(ASPECT_PRESETS) as AspectPresetKey[];
 
 export default function App() {
+  const [view, setView] = useState<"convert" | "editor">("convert");
   const [file, setFile] = useState<File | null>(null);
   const [preset, setPreset] = useState<AspectPresetKey>("9:16");
   const [durationSec, setDurationSec] = useState(30);
@@ -66,6 +68,18 @@ export default function App() {
     [detectDuration],
   );
 
+  const handleEditedHtml = useCallback(
+    (html: string, filename: string) => {
+      const edited = new File([html], filename, { type: "text/html" });
+      setFile(edited);
+      setSubmitError(null);
+      setJobId(null);
+      void detectDuration(edited);
+      setView("convert");
+    },
+    [detectDuration],
+  );
+
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
@@ -113,6 +127,16 @@ export default function App() {
         failed: "Failed",
       }[job.status]
     : null;
+
+  if (view === "editor" && file) {
+    return (
+      <MotionEditor
+        file={file}
+        onBack={() => setView("convert")}
+        onExportToConverter={handleEditedHtml}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen px-4 py-10">
@@ -168,6 +192,16 @@ export default function App() {
                 <p className="mt-1 text-sm text-[var(--color-muted)]">
                   {(file.size / 1024).toFixed(1)} KB — click or drop to replace
                 </p>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setView("editor");
+                  }}
+                  className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[var(--color-accent)] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-accent-hover)]"
+                >
+                  ✨ Edit motion design
+                </button>
               </div>
             ) : (
               <div>
